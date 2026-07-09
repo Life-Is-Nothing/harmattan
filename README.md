@@ -1,160 +1,86 @@
-# HARMATTAN v3 — Network Intelligence Suite
+# 🌪️ HARMATTAN — Network Intelligence Suite
 
-Outil professionnel d’audit réseau : découverte ARP enrichie, nmap asynchrone,
-topologie hiérarchique, surface d’attaque scorée, corrélation CVE (NVD + cache),
-capture de trafic, outils diagnostics, rapports HTML/JSON et persistance SQLite.
+[![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)](https://python.org)
+[![Flask](https://img.shields.io/badge/Flask-3.x-black?logo=flask)](https://flask.palletsprojects.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Ethics](https://img.shields.io/badge/Use-Authorized%20only-orange)](#ethics)
 
-> ⚠️ **Usage strictement réservé à l’audit de réseaux dont vous avez l’autorisation
-> explicite.** L’utilisation contre des réseaux tiers sans consentement est illégale.
+**Professional network reconnaissance & visualization** for authorized audits.  
+ARP discovery, nmap integration, attack surface scoring, CVE correlation, live traffic, topology graph, and **HTML / PDF / DOCX** reports.
 
-**Auteur :** Mohamed Adoungouss Ibrahim / NACF
+> Part of the [HARMATTAN Suite](https://github.com/Life-Is-Nothing/harmattan-suite)
 
 ---
 
-## Fonctionnalités
+## Features
 
 | Module | Description |
 |---|---|
-| **Dashboard** | Scan maison 1-clic, score/grade, historique, nouveaux appareils |
-| **Découverte ARP** | Broadcast + OUI, hostname, TTL/OS, ports, SNMP, rôles (IoT/cam/print…) |
-| **Scan Nmap** | 10 profils, jobs async + progression + annulation, args whitelistés |
-| **Topologie** | Graphe hiérarchique (clients → AP → gateway → Internet), live léger |
-| **Attack Surface** | Ports sensibles, scoring 0–100, grade A–F, recommandations |
-| **Vulnérabilités** | NVD API + cache SQLite, agrégation par sévérité |
-| **Trafic** | Capture thread-safe (deque), top flux, ports, BPF, CSV |
-| **Outils** | Ping, traceroute, banner, DNS, TLS cert inspect |
-| **Rapports** | HTML pro, JSON, export session complète |
-| **Sécurité** | Token API, validation stricte, XSS escaped, headers sécurité |
+| **ARP Discovery** | Fast broadcast scan + OUI vendor, hostname, TTL/OS, role inference |
+| **Nmap** | Multiple profiles (service, OS, vuln NSE, UDP…) with async jobs |
+| **Attack Surface** | Risk scoring, grade A–F, remediation hints |
+| **CVE** | NVD correlation with local cache |
+| **Topology** | Interactive hierarchical graph (vis-network) |
+| **Traffic** | Live capture, top flows, CSV + **PCAP** export |
+| **Diff ARP** | New / gone / changed hosts between scans |
+| **mDNS / SSDP** | Lightweight IoT discovery |
+| **Reports** | Client-ready HTML, PDF, Word |
 
 ---
 
-## Installation
-
-### Prérequis
+## Quick start
 
 ```bash
-sudo apt install nmap python3-venv python3-pip traceroute iproute2
-```
-
-### Lancement rapide
-
-```bash
+git clone https://github.com/Life-Is-Nothing/harmattan.git
 cd harmattan
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+sudo apt install nmap   # recommended
 chmod +x harmattan.sh
-sudo ./harmattan.sh
+sudo ./harmattan.sh     # root needed for ARP / sniff
 ```
 
-Ouvrez `http://127.0.0.1:8088` — le token API est affiché dans le terminal
-et injecté automatiquement en cookie navigateur.
+Open **http://127.0.0.1:8088**
 
-### Variables d’environnement
-
-| Variable | Défaut | Rôle |
-|---|---|---|
-| `HARMATTAN_HOST` | `127.0.0.1` | Bind address |
-| `HARMATTAN_PORT` | `8088` | Port HTTP |
-| `HARMATTAN_TOKEN` | (auto) | Token API fixe |
-| `HARMATTAN_AUTO_TOKEN` | `1` | Génère un token si absent |
-| `NVD_API_KEY` | — | Accélère la corrélation CVE |
-| `HARMATTAN_DATA` | `./data` | SQLite + logs |
-| `HARMATTAN_SNMP_COMMUNITIES` | `public,private` | Communautés SNMP |
-
-### Docker
-
-```bash
-docker compose up --build
-# network_mode: host pour découvrir le LAN
-```
-
----
-
-## Utilisation
-
-1. **Scan maison** (Dashboard) — ARP + fingerprint + nmap gateway.
-2. **Découverte ARP** — filtre table, détail hôte (drawer).
-3. **Nmap** — choisir profil, suivre la barre de progression, annuler si besoin.
-4. **Topologie** — clic nœud → fiche hôte ; live monitoring ARP léger.
-5. **Attack Surface** — grade + recommandations de durcissement.
-6. **CVE** — après un scan `-sV` (profil *service* / *vulners*).
-7. **Exports** — HTML, JSON, session, CSV topologie/trafic.
-
-### Raccourcis clavier
-
-| Touche | Action |
-|---|---|
-| `s` | Scan maison |
-| `1`–`4` | Vues dashboard / ARP / nmap / topologie |
-| `Esc` | Fermer le panneau hôte |
+> ARP & packet capture require root (or `CAP_NET_RAW`). Nmap/CVE work without root with reduced features.
 
 ---
 
 ## Architecture
 
-```
+```text
 harmattan/
-├── app.py                 # Flask API + auth + jobs
-├── core/
-│   ├── config.py          # Configuration / env
-│   ├── validation.py      # Validation anti-injection
-│   ├── jobs.py            # File d'attente async
-│   ├── db.py              # SQLite (scans, CVE cache, hosts)
-│   ├── state.py           # État thread-safe
-│   └── logging_setup.py
-├── modules/               # Scanners & analyse
-├── templates/index.html
-├── static/{css,js}/
-├── tests/
-├── Dockerfile
-└── docker-compose.yml
-```
-
-### API (aperçu)
-
-| Méthode | Endpoint | Description |
-|---|---|---|
-| GET | `/api/health` | Healthcheck |
-| GET | `/api/system-check` | Scapy/nmap/root/réseau |
-| POST | `/api/home-scan` | Pipeline maison → `{job_id}` |
-| POST | `/api/arp-scan` | Scan ARP async |
-| POST | `/api/nmap-scan` | Scan nmap async |
-| GET | `/api/jobs/<id>` | Statut + résultat |
-| POST | `/api/jobs/<id>/cancel` | Annuler |
-| GET | `/api/attack-surface` | Surface d’attaque |
-| GET | `/api/topology` | Graphe |
-| POST | `/api/vuln-scan` | Corrélation CVE |
-| GET | `/api/report.html` | Rapport HTML |
-| GET | `/api/report.json` | Rapport JSON |
-| GET | `/api/session/export` | Session complète |
-
-Header auth : `X-Harmattan-Token: <token>`
-
----
-
-## Tests
-
-```bash
-./venv/bin/pip install -r requirements-dev.txt
-./venv/bin/pytest -q
+├── app.py              # Flask API + dashboard
+├── core/               # config, jobs, db, validation, alerts
+├── modules/            # scanners & analysis
+├── templates/ + static/
+└── tests/
 ```
 
 ---
 
-## Notes de performance & sécurité
+## Suite
 
-- Jobs async : l’UI ne bloque plus pendant nmap/ARP/CVE.
-- Buffer trafic borné (`deque`, 5000 paquets).
-- Cache CVE SQLite (24 h).
-- Arguments nmap whitelistés (pas d’injection shell).
-- Bind local par défaut ; token obligatoire en auto.
-- ARP / sniff : `sudo` ou capabilities `CAP_NET_RAW`.
-
-```bash
-sudo setcap cap_net_raw,cap_net_admin+eip $(readlink -f ./venv/bin/python)
-```
+| Repo | Role |
+|---|---|
+| [harmattan-pt](https://github.com/Life-Is-Nothing/harmattan-pt) | Full pentest platform |
+| [harmattan-locate](https://github.com/Life-Is-Nothing/harmattan-locate) | Consent location sharing |
+| [harmattan-hub](https://github.com/Life-Is-Nothing/harmattan-hub) | Unified hub & alerts |
 
 ---
 
-## Licence
+## Ethics
 
-Projet original pour NACF (Niger Anonymous Cyber Force).  
-Libre d’utilisation et de modification dans un cadre d’audit éthique et autorisé.
+**Authorized networks only.** Unauthorized scanning is illegal.  
+Built for labs, training, and professional engagements with written permission.
+
+---
+
+## Author
+
+**Mohamed Adoungouss Ibrahim** · NACF · Niger  
+GitHub: [@Life-Is-Nothing](https://github.com/Life-Is-Nothing)
+
+## License
+
+MIT — see [LICENSE](LICENSE)
