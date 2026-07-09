@@ -1,0 +1,21 @@
+services:
+  harmattan:
+    build: .
+    container_name: harmattan
+    environment:
+      HARMATTAN_HOST: "0.0.0.0"
+      HARMATTAN_PORT: "8088"
+      HARMATTAN_AUTO_TOKEN: "1"
+      # HARMATTAN_TOKEN: "change-me"
+      # NVD_API_KEY: ""
+    volumes:
+      - harmattan-data:/data
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    # host networking = discovery LAN réelle (ARP). Port 8088 sur l'hôte.
+    network_mode: host
+    restart: unless-stopped
+
+volumes:
+  harmattan-data:
