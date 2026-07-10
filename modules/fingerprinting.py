@@ -29,10 +29,24 @@ PC_VENDORS = [
     "intel", "dell", "lenovo", "hp", "hewlett", "acer", "gigabyte",
     "msi", "asrock", "asus", "supermicro", "fujitsu",
 ]
-MOBILE_VENDORS = [
+ANDROID_VENDORS = [
     "samsung", "xiaomi", "oneplus", "oppo", "realme", "motorola",
     "lg electronics", "sony mobile", "zte", "huawei", "honor",
+    "vivo", "tecno", "infinix", "google", "pixel", "nothing",
+    "fairphone", "meizu",
 ]
+MOBILE_VENDORS = ANDROID_VENDORS + [
+    "nokia",  # mixed
+]
+TV_VENDORS = [
+    "roku", "tcl", "hisense", "vizio", "chromecast", "nvidia", "shield",
+    "skyworth", "philips tv",
+]
+TV_HOST_HINTS = [
+    "tv", "roku", "chromecast", "firestick", "smart-tv", "androidtv",
+    "bravia", "webos", "tizen-tv", "mi-box", "shield",
+]
+SERVER_HINTS = ["server", "nas", "synology", "qnap", "proxmox", "esxi", "dell emc"]
 IOT_VENDORS = [
     "espressif", "tuya", "shelly", "sonoff", "ring", "nest",
     "philips", "tp-link technologies", "amazon technologies",
@@ -253,11 +267,49 @@ def infer_role(
 
     if "raspberry" in v or "raspberry" in h:
         return "raspberry"
-    if any(k in v for k in ["vmware", "virtualbox", "proxmox", "parallels", "qemu"]):
+    if any(k in v for k in ["vmware", "virtualbox", "proxmox", "parallels", "qemu", "xen"]):
         return "vm"
-    if "apple" in v or any(k in h for k in ["iphone", "ipad", "macbook", "imac", "apple"]):
+    if any(k in h for k in SERVER_HINTS) or any(k in v for k in ["synology", "qnap", "supermicro"]):
+        return "server"
+    # Apple ecosystem (before TV — Apple TV stays apple or tv)
+    if "apple" in v or any(k in h for k in ["iphone", "ipad", "macbook", "imac", "ipod", "airport"]):
         return "apple"
-    if any(k in v for k in MOBILE_VENDORS) or any(k in h for k in ["android", "iphone", "phone", "mobile"]):
+    if "appletv" in h or "apple-tv" in h:
+        return "tv"
+
+    # Android phones / tablets BEFORE generic TV (Samsung phones ≠ TV)
+    android_host = any(
+        k in h
+        for k in [
+            "android",
+            "galaxy",
+            "pixel",
+            "redmi",
+            "xiaomi",
+            "huawei",
+            "honor",
+            "oppo",
+            "oneplus",
+            "realme",
+            "sm-",
+            "phone",
+            "redmi",
+        ]
+    )
+    android_vendor = any(k in v for k in ANDROID_VENDORS)
+    # Samsung/LG phones: vendor alone + phone-like hostname or no TV hint
+    if android_host or (
+        android_vendor
+        and not any(k in h for k in TV_HOST_HINTS)
+        and "tv" not in h
+    ):
+        if "nest" not in h and "chromecast" not in h:
+            return "android"
+
+    if any(k in v for k in TV_VENDORS) or any(k in h for k in TV_HOST_HINTS):
+        return "tv"
+
+    if any(k in h for k in ["iphone", "phone", "mobile", "tablet"]):
         return "mobile"
 
     if os_hint == "network_device":
@@ -265,12 +317,15 @@ def infer_role(
 
     if any(k in v for k in PC_VENDORS):
         return "pc"
-    if any(k in h for k in ["desktop", "pc-", "-pc", "workstation", "laptop", "linux", "windows", "ubuntu"]):
+    if any(k in h for k in ["desktop", "pc-", "-pc", "workstation", "laptop", "linux", "windows", "ubuntu", "debian"]):
         return "pc"
     if os_hint == "linux/macos" and 22 in open_ports:
         return "pc"
     if os_hint == "windows" and any(p in open_ports for p in [135, 139, 445]):
         return "pc"
+    # many open service ports → server-ish
+    if len(open_ports) >= 5 and any(p in open_ports for p in [22, 80, 443, 3306, 5432]):
+        return "server"
 
     return "unknown"
 
@@ -310,6 +365,15 @@ def enrich_host(host: dict, known_gateway_ip: Optional[str] = None, light: bool 
         ip, vendor_for_role, host["hostname"], ttl, open_ports, ip == known_gateway_ip
     )
     host["status"] = host.get("status", "up")
+    # L0p4Map-style default-credential device flags (lightweight, no banners here)
+    try:
+        from modules.default_creds import assess_host
+
+        flags = assess_host(host)
+        if flags:
+            host["default_cred_flags"] = flags
+    except Exception:
+        pass
     return host
 
 

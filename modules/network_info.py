@@ -189,6 +189,29 @@ def get_wifi_ssid(iface_name: Optional[str] = None) -> Optional[str]:
     return None
 
 
+def suggest_capture_iface() -> Optional[str]:
+    """Meilleure interface pour capture live (physique, up, non virtuelle)."""
+    ifaces = get_interfaces()
+    # préférence wifi/eth physique
+    preferred = []
+    for i in ifaces:
+        name = i.get("name") or ""
+        if i.get("virtual"):
+            continue
+        score = 0
+        if name.startswith("wl") or "wlan" in name:
+            score += 30
+        if name.startswith("en") or name.startswith("eth"):
+            score += 25
+        if i.get("ip"):
+            score += 10
+        preferred.append((score, name))
+    preferred.sort(reverse=True)
+    if preferred:
+        return preferred[0][1]
+    return ifaces[0]["name"] if ifaces else None
+
+
 def snapshot(iface: Optional[str] = None) -> dict:
     ifaces = get_interfaces()
     gateway = get_default_gateway()
@@ -201,5 +224,6 @@ def snapshot(iface: Optional[str] = None) -> dict:
         "subnet": subnet,
         "local_ip": local_ip,
         "ssid": ssid,
+        "capture_iface": suggest_capture_iface(),
         "running_as_root": os.geteuid() == 0 if hasattr(os, "geteuid") else False,
     }

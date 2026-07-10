@@ -25,6 +25,18 @@ ARP discovery, nmap integration, attack surface scoring, CVE correlation, live t
 | **Diff ARP** | New / gone / changed hosts between scans |
 | **mDNS / SSDP** | Lightweight IoT discovery |
 | **Reports** | Client-ready HTML, PDF, Word |
+| **Topology icons** | Icônes par type (Android, Apple, PC, AP, caméra…) |
+| **Monitor ARP** | Scan périodique + alerte hub nouveaux hôtes |
+| **Export SAHEL / PT** | JSON pour Sahel Shield · scope pour HARMATTAN-PT |
+| **Intel pack v3.3** | SNMP · NetBIOS · LLDP/CDP · Wi‑Fi · MITRE · IsolationForest · Suricata · STIX · GraphML |
+| **SAHEL bridge** | Push inventaire périodique vers Sahel Shield |
+| **L0p4Map parity v3.7** | Range map multi-hop · default-cred · labels · WOL · findings · quick actions |
+
+### Topologie & Intel
+
+- Icônes SVG : Android · Apple · PC · Serveur · Imprimante · Caméra · IoT · TV · AP…
+- Vue **Intel** : discovery avancée, anomalies ML, mapping MITRE ATT&CK, Suricata eve.json
+- Exports : STIX 2.1, GraphML/GEXF, PNG topologie
 
 ---
 

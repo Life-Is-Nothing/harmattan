@@ -1,0 +1,58 @@
+openapi: 3.0.3
+info:
+  title: HARMATTAN Network API
+  version: 3.8.0
+  description: Network intelligence — ARP, topology, traffic, intel, L0p4Map parity
+servers:
+  - url: http://127.0.0.1:8088
+paths:
+  /api/health:
+    get:
+      summary: Health
+      responses:
+        "200":
+          description: OK
+  /api/arp-scan:
+    post:
+      summary: ARP discovery
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subnet: { type: string }
+                enrich: { type: boolean }
+                async: { type: boolean }
+      responses:
+        "200":
+          description: Job or result
+  /api/range-map:
+    post:
+      summary: Multi-hop range cartography
+  /api/topology:
+    get:
+      summary: Topology graph
+  /api/traffic/packets:
+    get:
+      summary: Wireshark packet list
+  /api/scheduler/start:
+    post:
+      summary: Scheduled ARP + optional report
+  /api/default-creds:
+    post:
+      summary: Default credential device scan
+  /api/wol:
+    post:
+      summary: Wake-on-LAN
+  /api/sahel/correlate:
+    post:
+      summary: Correlate packets with Sahel alerts
+components:
+  securitySchemes:
+    HarmattanToken:
+      type: apiKey
+      in: header
+      name: X-Harmattan-Token
+security:
+  - HarmattanToken: []

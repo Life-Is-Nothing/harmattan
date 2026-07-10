@@ -138,13 +138,76 @@ def build_html_report(
         for k, v in (m["roles"] or {}).items()
     ) or '<div class="kpi"><div class="k">—</div><div class="l">rôles</div></div>'
 
+    # Top risques (expositions critique/haute + CVE high)
+    top_risks: list[dict] = []
+    risk_rank = {"critique": 0, "critical": 0, "haute": 1, "high": 1, "moyenne": 2, "medium": 2, "faible": 3, "low": 3}
+    for h in attack.get("hosts", []) or []:
+        for e in h.get("exposures") or []:
+            top_risks.append({
+                "kind": "exposition",
+                "ip": h.get("ip"),
+                "label": f"Port {e.get('port')} / {e.get('service') or '?'}",
+                "risk": e.get("risk") or "moyenne",
+                "detail": e.get("recommendation") or e.get("reason") or "",
+            })
+    for h in vuln.get("hosts", []) or []:
+        for s in h.get("services") or []:
+            for c in s.get("cves") or []:
+                sev = (c.get("severity") or "medium").lower()
+                if sev in ("critical", "high", "critique", "haute", "medium", "moyenne"):
+                    top_risks.append({
+                        "kind": "cve",
+                        "ip": h.get("ip"),
+                        "label": c.get("id") or "CVE",
+                        "risk": sev,
+                        "detail": (c.get("description") or "")[:160],
+                    })
+    top_risks.sort(key=lambda x: risk_rank.get(str(x.get("risk", "")).lower(), 9))
+    top_risks = top_risks[:12]
+    top_rows = ""
+    for i, r in enumerate(top_risks, 1):
+        top_rows += f"""
+        <tr>
+          <td>{i}</td>
+          <td class="mono">{escape(str(r.get('ip') or '—'))}</td>
+          <td>{escape(str(r.get('kind') or ''))}</td>
+          <td>{escape(str(r.get('label') or ''))}</td>
+          <td><span class="sev sev-{escape(str(r.get('risk') or ''))}">{escape(str(r.get('risk') or ''))}</span></td>
+          <td>{escape(str(r.get('detail') or '—')[:200])}</td>
+        </tr>"""
+
+    # Texte synthèse exécutive
+    grade = str(m["grade"] or "—")
+    if m["exposures"] == 0 and m["cves"] == 0:
+        exec_text = (
+            f"Le segment <b>{escape(str(m['subnet']))}</b> présente un profil globalement maîtrisé "
+            f"({m['hosts']} appareil(s), grade <b>{escape(grade)}</b>). "
+            "Aucune exposition critique ni CVE corrélée n'a été remarquée dans cette session. "
+            "Maintenir le durcissement de base (mises à jour, segmentation, MFA admin)."
+        )
+    elif m["exposures"] >= 5 or str(grade).upper() in ("D", "E", "F"):
+        exec_text = (
+            f"<b>Attention :</b> le réseau <b>{escape(str(m['subnet']))}</b> affiche un niveau de risque élevé "
+            f"(grade <b>{escape(grade)}</b>, score {m['score']}/100) avec "
+            f"<b>{m['exposures']}</b> exposition(s) et <b>{m['cves']}</b> CVE. "
+            "Prioriser la fermeture des services inutiles, le filtrage périmétrique et les correctifs."
+        )
+    else:
+        exec_text = (
+            f"L'audit du segment <b>{escape(str(m['subnet']))}</b> a inventorié "
+            f"<b>{m['hosts']}</b> appareil(s). Grade <b>{escape(grade)}</b> ({m['score']}/100) : "
+            f"<b>{m['exposures']}</b> exposition(s) de surface d'attaque et "
+            f"<b>{m['cves']}</b> corrélation(s) CVE. "
+            "Les actions prioritaires figurent dans le top risques et les recommandations ci-dessous."
+        )
+
     return f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <title>HARMATTAN — {escape(title)} — {now}</title>
 <style>
-  @page {{ size: A4; margin: 18mm 16mm; }}
+  @page {{ size: A4; margin: 16mm 14mm; }}
   :root {{
     --orange: #{ORANGE}; --cyan: #{CYAN}; --bg: #0a0d12; --panel: #121820;
     --border: #232b38; --text: #e8ecf1; --muted: #8b96a8; --red: #{RED}; --green: #{GREEN};
@@ -157,26 +220,34 @@ def build_html_report(
   }}
   .page {{ max-width: 980px; margin: 0 auto; padding: 32px 28px 64px; }}
   .cover {{
-    border: 1px solid var(--border); border-radius: 14px; padding: 40px 36px;
-    background: linear-gradient(145deg, #10151d 0%, #0a0d12 60%, #1a1200 100%);
+    border: 1px solid var(--border); border-radius: 16px; padding: 36px 36px 32px;
+    background: linear-gradient(145deg, #10151d 0%, #0a0d12 55%, #1a1200 100%);
     margin-bottom: 28px; position: relative; overflow: hidden;
   }}
   .cover::after {{
     content: ''; position: absolute; right: -40px; top: -40px;
-    width: 180px; height: 180px; border-radius: 50%;
-    background: radial-gradient(circle, rgba(247,127,0,.25), transparent 70%);
+    width: 200px; height: 200px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(247,127,0,.28), transparent 70%);
+  }}
+  .cover-top {{ display: flex; align-items: center; gap: 16px; margin-bottom: 8px; position: relative; z-index: 1; }}
+  .logo {{
+    width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0;
+    background: linear-gradient(135deg, #f77f00, #2fd9d0);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 22px; color: #0a0d12; letter-spacing: -0.04em;
+    box-shadow: 0 8px 24px rgba(247,127,0,.35);
   }}
   .brand {{ color: var(--orange); font-weight: 800; letter-spacing: .14em; font-size: 12px; text-transform: uppercase; }}
-  h1 {{ font-size: 28px; margin: 12px 0 8px; letter-spacing: -.02em; }}
-  .subtitle {{ color: var(--muted); font-size: 14px; margin-bottom: 22px; }}
-  .meta-grid {{ display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 10px; }}
+  h1 {{ font-size: 28px; margin: 10px 0 8px; letter-spacing: -.02em; position: relative; z-index: 1; }}
+  .subtitle {{ color: var(--muted); font-size: 14px; margin-bottom: 22px; position: relative; z-index: 1; }}
+  .meta-grid {{ display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 10px; position: relative; z-index: 1; }}
   .meta-item {{ background: rgba(0,0,0,.25); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }}
   .meta-item .l {{ font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }}
   .meta-item .v {{ font-size: 13px; margin-top: 4px; font-family: ui-monospace, monospace; }}
   .classify {{
     display: inline-block; margin-top: 18px; padding: 6px 12px; border-radius: 6px;
     background: rgba(247,127,0,.12); border: 1px solid rgba(247,127,0,.35); color: var(--orange);
-    font-size: 11px; font-weight: 600; letter-spacing: .04em;
+    font-size: 11px; font-weight: 600; letter-spacing: .04em; position: relative; z-index: 1;
   }}
   h2 {{
     color: var(--cyan); font-size: 15px; text-transform: uppercase; letter-spacing: .1em;
@@ -193,6 +264,7 @@ def build_html_report(
   .kpi {{ background: #0a0d12; border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }}
   .kpi .k {{ font-size: 22px; font-weight: 700; color: var(--orange); }}
   .kpi .l {{ font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }}
+  .exec-text {{ color: var(--muted); margin-top: 14px; line-height: 1.55; }}
   table {{ width: 100%; border-collapse: collapse; margin: 10px 0 18px; font-size: 12px; }}
   th, td {{ border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }}
   th {{ background: #151b25; color: var(--muted); text-transform: uppercase; font-size: 10px; letter-spacing: .06em; }}
@@ -228,9 +300,15 @@ def build_html_report(
 <body>
 <div class="page">
   <section class="cover">
-    <div class="brand">◆ HARMATTAN · Network Intelligence</div>
+    <div class="cover-top">
+      <div class="logo">H</div>
+      <div>
+        <div class="brand">◆ HARMATTAN · Network Intelligence</div>
+        <div style="color:var(--muted);font-size:11px;margin-top:4px;">NACF · Audit réseau autorisé · Sahel / lab pro</div>
+      </div>
+    </div>
     <h1>{escape(title)}</h1>
-    <p class="subtitle">Audit réseau autorisé · Livrable confidentiel</p>
+    <p class="subtitle">Livrable confidentiel · Synthèse, top risques, inventaire & remédiation</p>
     <div class="meta-grid">
       <div class="meta-item"><div class="l">Client</div><div class="v">{client_l}</div></div>
       <div class="meta-item"><div class="l">Opérateur</div><div class="v">{operator_l}</div></div>
@@ -259,42 +337,43 @@ def build_html_report(
       <div class="kpi"><div class="k">{escape(str(m['gateway'])[:12])}</div><div class="l">Gateway</div></div>
     </div>
   </div>
-  <p style="color:var(--muted);margin-top:12px;">
-    L'audit a identifié <b style="color:var(--text)">{m['hosts']}</b> appareil(s) sur le segment
-    <b style="color:var(--text)">{escape(str(m['subnet']))}</b>, avec
-    <b style="color:var(--text)">{m['exposures']}</b> exposition(s) de surface d'attaque
-    et <b style="color:var(--text)">{m['cves']}</b> corrélation(s) CVE.
-  </p>
+  <p class="exec-text">{exec_text}</p>
 
-  <h2>2. Répartition des rôles</h2>
+  <h2>2. Top risques prioritaires</h2>
+  <table>
+    <thead><tr><th>#</th><th>IP</th><th>Type</th><th>Élément</th><th>Sévérité</th><th>Action / détail</th></tr></thead>
+    <tbody>{top_rows or '<tr><td colspan="6">Aucun risque prioritaire détecté dans cette session.</td></tr>'}</tbody>
+  </table>
+
+  <h2>3. Répartition des rôles</h2>
   <div class="kpis">{roles_html}</div>
 
-  <h2>3. Recommandations prioritaires</h2>
+  <h2>4. Recommandations prioritaires</h2>
   {"<ul>" + recs + "</ul>" if recs else "<p style='color:var(--muted)'>Aucune recommandation critique automatique.</p>"}
 
-  <h2>4. Inventaire des hôtes ({m['hosts']})</h2>
+  <h2>5. Inventaire des hôtes ({m['hosts']})</h2>
   <table>
     <thead><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Hostname</th><th>Rôle</th><th>OS</th><th>Ports</th></tr></thead>
     <tbody>{hosts_rows or '<tr><td colspan="7">Aucun hôte découvert</td></tr>'}</tbody>
   </table>
 
-  <h2>5. Surface d'attaque</h2>
+  <h2>6. Surface d'attaque</h2>
   <p style="color:var(--muted)">Expositions: {m['exposures']} · Hôtes analysés: {attack.get('total_hosts', 0)}</p>
   <table>
     <thead><tr><th>IP</th><th>Rôle</th><th>Port</th><th>Service</th><th>Risque</th><th>Remédiation</th></tr></thead>
     <tbody>{attack_rows or '<tr><td colspan="6">Aucune exposition</td></tr>'}</tbody>
   </table>
 
-  <h2>6. Résultats Nmap</h2>
+  <h2>7. Résultats Nmap</h2>
   {nmap_sections or '<p style="color:var(--muted)">Aucun scan nmap enregistré pour cette session.</p>'}
 
-  <h2>7. Vulnérabilités CVE</h2>
+  <h2>8. Vulnérabilités CVE</h2>
   <table>
     <thead><tr><th>IP</th><th>Produit</th><th>CVE</th><th>Score</th><th>Sévérité</th><th>Description</th></tr></thead>
     <tbody>{vuln_rows or '<tr><td colspan="6">Aucune CVE corrélée</td></tr>'}</tbody>
   </table>
 
-  <h2>8. Méthodologie</h2>
+  <h2>9. Méthodologie</h2>
   <ul>
     <li>Découverte ARP broadcast + fingerprinting (OUI, TTL, ports, SNMP, hostname)</li>
     <li>Scan de services nmap (profils sélectionnés)</li>
@@ -302,7 +381,7 @@ def build_html_report(
     <li>Corrélation CVE via NVD (si scan versions disponible)</li>
   </ul>
 
-  <h2>9. Limitations</h2>
+  <h2>10. Limitations</h2>
   <ul>
     <li>Les hôtes silencieux (pas de réponse ARP) peuvent être absents</li>
     <li>La corrélation CVE dépend de la précision product/version nmap</li>

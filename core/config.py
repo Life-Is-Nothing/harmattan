@@ -48,9 +48,9 @@ NMAP_ALLOWED_FLAGS = frozenset({
     "-v", "-vv", "--open", "-6",
 })
 
-VERSION = "3.0.0"
+VERSION = "3.9.0"
 APP_NAME = "HARMATTAN"
-APP_TAGLINE = "Network Intelligence Suite"
+APP_TAGLINE = "Network Intelligence — L0p4Map parity · multi-hop · default-cred · WOL"
 
 # SNMP communities to try
 SNMP_COMMUNITIES = [
