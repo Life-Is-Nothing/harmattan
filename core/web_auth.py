@@ -71,7 +71,7 @@ def login():
                     # Avoid open-redirect: only allow local paths
                     if next_url.startswith("/") and not next_url.startswith("//"):
                         return redirect(next_url)
-                    return redirect(url_for("index"))
+                    return redirect(url_for("system.index"))
                 except ValueError as e:
                     error = str(e)
 

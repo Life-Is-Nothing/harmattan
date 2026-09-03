@@ -153,7 +153,7 @@ def role_required(*roles):
                         message="Privilèges insuffisants (rôle requis: " + ", ".join(roles) + ").",
                         status=403,
                     )
-                return redirect(url_for("index"))
+                return redirect(url_for("system.index"))
             return fn(*args, **kwargs)
 
         return wrapper
