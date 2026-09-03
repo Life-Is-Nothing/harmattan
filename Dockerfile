@@ -1,4 +1,7 @@
-FROM python:3.12-slim-bookworm
+# Dockerfile intentionally removed — this repository is being used without Docker
+# If you need Docker support again, restore the original Dockerfile from git history or
+# recreate it using the provided template in the project documentation.
+# Original file started with: "FROM python:3.12-slim-bookworm"
 
 LABEL org.opencontainers.image.title="HARMATTAN" \
       org.opencontainers.image.description="Network Intelligence Suite" \

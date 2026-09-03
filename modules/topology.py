@@ -339,14 +339,15 @@ def _mk_node(
         "device_type": role,
         "icon": icon,
         "borderWidth": 0,
+        "shapeProperties": {"useBorderWithImage": False},
         "font": {
             "color": "#e8eef9",
-            "size": 12 if level <= 0 else 11,
+            "size": 13 if level <= 0 else 11,
             "face": "IBM Plex Mono, ui-monospace, monospace",
             "multi": True,
             "align": "center",
             "strokeWidth": 3,
-            "strokeColor": "#0a0d12",
+            "strokeColor": "rgba(10,13,18,0.92)",
             "vadjust": 2,
         },
     }
@@ -358,25 +359,25 @@ def _mk_node(
 def _mk_edge(frm: str, to: str, edge_type: str) -> dict:
     styles = {
         "uplink": {
-            "dashes": [6, 4],
+            "dashes": [5, 5],
             "width": 2,
-            "color": {"color": "#5a6578", "highlight": "#94a3b8"},
-            "arrows": {"to": {"enabled": True, "scaleFactor": 0.6}},
-            "smooth": {"type": "curvedCW", "roundness": 0.18},
+            "color": {"color": "rgba(107,118,136,0.8)", "highlight": "#a8b4c8", "hover": "#a8b4c8"},
+            "arrows": {"to": {"enabled": True, "scaleFactor": 0.55}},
+            "smooth": {"type": "curvedCW", "roundness": 0.2},
         },
         "backbone": {
             "dashes": False,
             "width": 3,
-            "color": {"color": "#2fd9d0", "highlight": "#7aefe8"},
-            "arrows": {"to": {"enabled": True, "scaleFactor": 0.55}},
-            "smooth": {"type": "cubicBezier", "forceDirection": "vertical", "roundness": 0.4},
+            "color": {"color": "rgba(47,217,208,0.9)", "highlight": "#7aefe8", "hover": "#7aefe8"},
+            "arrows": {"to": {"enabled": True, "scaleFactor": 0.5}},
+            "smooth": {"type": "cubicBezier", "forceDirection": "vertical", "roundness": 0.42},
         },
         "client": {
             "dashes": False,
-            "width": 1.4,
-            "color": {"color": "#3a4558", "highlight": "#f77f00"},
+            "width": 1.5,
+            "color": {"color": "rgba(70,82,104,0.75)", "highlight": "#f77f00", "hover": "#f77f00"},
             "arrows": {"to": {"enabled": False}},
-            "smooth": {"type": "continuous", "roundness": 0.45},
+            "smooth": {"type": "continuous", "roundness": 0.32},
         },
     }
     st = styles.get(edge_type, styles["client"])

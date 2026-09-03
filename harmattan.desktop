@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=HARMATTAN
+Comment=Network Intelligence Suite — Audit, SOC, Pentest
+Exec=/opt/harmattan/harmattan-desktop
+Icon=/opt/harmattan/harmattan_gui/resources/icons/app_icon.svg
+Terminal=false
+Categories=Network;Security;Administration;
+StartupNotify=true
+StartupWMClass=harmattan-desktop
+Keywords=network;security;audit;pentest;soc

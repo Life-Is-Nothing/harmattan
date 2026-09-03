@@ -8,8 +8,18 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◆</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ version }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}?v={{ version }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/result-explain.css') }}?v={{ version }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/modern.css') }}?v={{ version }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dark-mode.css') }}?v={{ version }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/skeletons.css') }}?v={{ version }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/search.css') }}?v={{ version }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/charts.css') }}?v={{ version }}">
 <script src="https://unpkg.com/vis-network@9.1.9/dist/vis-network.min.js"></script>
+<script>window.HARMATTAN_IDENTITY_URL="http://127.0.0.1:8076";</script>
+<script src="http://127.0.0.1:8076/static/sso.js"></script>
+
 <script>window.HARMATTAN_TOKEN = {{ token|tojson }}; window.HARMATTAN_VERSION = {{ version|tojson }};</script>
 </head>
 <body>
@@ -50,6 +60,7 @@
   </div>
 
   <div class="main">
+    <div id="present-hint" class="hidden" style="display:none"></div>
 
     <!-- JOB BAR -->
     <div id="job-bar" class="job-bar hidden">
@@ -72,6 +83,7 @@
         </div>
         <div class="controls-row">
           <button id="btn-home-scan">⚡ Scan maison</button>
+          <button id="btn-ai-analyze" class="cyan">🤖 AI Analyst</button>
           <button id="btn-export-report">Rapport HTML</button>
           <button class="secondary" id="btn-export-pdf">PDF Pro</button>
           <button class="secondary" id="btn-export-docx">Word DOCX</button>
@@ -118,6 +130,51 @@
           <div class="health-item"><span class="hk">Jobs actifs</span><span class="hv" id="h-jobs">—</span></div>
         </div>
       </div>
+
+      
+<div class="panel ai-panel hidden" id="ai-analysis-panel">
+        <div class="view-header" style="margin-bottom:10px;padding:0;">
+          <div>
+            <h2 style="margin:0;">Analyse Cognitive (AI Network v4)</h2>
+            <p class="muted small" id="ai-summary" style="margin:4px 0 0;">Analyse en cours…</p>
+            <div id="ai-meta" class="muted small" style="margin-top:6px;"></div>
+            <p class="muted small" id="ai-executive" style="margin-top:8px;line-height:1.5;"></p>
+          </div>
+          <div style="display:flex;gap:6px;align-items:flex-start;">
+            <button class="secondary mini" id="btn-ai-refresh" type="button">Relancer</button>
+            <button class="secondary mini" id="btn-ai-close" type="button">Fermer</button>
+          </div>
+        </div>
+        <div class="two-col">
+          <div>
+            <h3>Priorités d'action</h3>
+            <ul id="ai-priorities" class="rec-list"></ul>
+            <h3 style="margin-top:14px;">Quick wins</h3>
+            <ul id="ai-quickwins" class="rec-list"></ul>
+            <h3 style="margin-top:14px;">Chemins d'attaque</h3>
+            <div id="ai-paths" class="muted small">—</div>
+            <h3 style="margin-top:14px;">MITRE ATT&amp;CK</h3>
+            <div id="ai-mitre" class="muted small">—</div>
+          </div>
+          <div>
+            <h3>Posture &amp; conseils</h3>
+            <p id="ai-advice" class="muted small"></p>
+            <div id="ai-posture" class="muted small" style="margin-top:8px;"></div>
+            <div id="ai-blast" class="muted small" style="margin-top:8px;"></div>
+            <div id="ai-segmentation" class="muted small" style="margin-top:8px;"></div>
+            <div id="ai-sla" class="muted small" style="margin-top:8px;"></div>
+            <div id="ai-remediation-links" style="margin-top:10px;"></div>
+            <h3 style="margin-top:14px;">Hôtes prioritaires</h3>
+            <div id="ai-hot-hosts" class="muted small">—</div>
+            <h3 style="margin-top:14px;">Narratifs hôtes</h3>
+            <div id="ai-narratives" class="muted small">—</div>
+            <h3 style="margin-top:14px;">Services à risque</h3>
+            <div id="ai-insecure" class="muted small">—</div>
+          </div>
+        </div>
+      </div>
+
+      
 
       <!-- Diff ARP pro -->
       <div class="panel" id="diff-arp-panel" style="display:none;">
@@ -256,12 +313,15 @@
     <div class="view" id="view-topology">
       <div class="view-header">
         <div>
-          <h1>Topologie Réseau</h1>
-          <p>Cartographie · filtre · recherche · détail hôte (ports / CVE).</p>
+          <h1>Topologie réseau</h1>
+          <p>Carte interactive · filtres · détail hôte · export PNG/CSV.</p>
         </div>
-        <div class="controls-row">
-          <input type="search" id="topo-search" placeholder="Rechercher IP / host…" style="width:160px">
-          <select id="topo-filter-role" style="min-width:140px">
+      </div>
+
+      <div class="topo-toolbar">
+        <div class="topo-toolbar-group">
+          <input type="search" id="topo-search" placeholder="IP / hostname / vendor…" style="width:180px">
+          <select id="topo-filter-role" style="min-width:150px">
             <option value="">Tous les types</option>
             <option value="gateway">Gateway</option>
             <option value="ap">AP / Wi‑Fi</option>
@@ -280,32 +340,37 @@
             <option value="vm">VM</option>
             <option value="self">Ce poste</option>
           </select>
-          <button class="secondary" id="btn-layout-toggle">Hiérarchique</button>
-          <button class="secondary" id="btn-topo-fit">Ajuster</button>
-          <button class="secondary" id="btn-live-toggle">Live OFF</button>
-          <select id="live-interval">
+        </div>
+        <div class="topo-toolbar-group">
+          <button class="secondary" id="btn-layout-toggle" type="button">Force Atlas</button>
+          <button class="secondary" id="btn-topo-fit" type="button">Ajuster</button>
+          <button class="secondary" id="btn-live-toggle" type="button">Live OFF</button>
+          <select id="live-interval" title="Intervalle live">
             <option value="30">30s</option>
             <option value="60" selected>60s</option>
             <option value="120">120s</option>
           </select>
-          <button class="secondary" id="btn-export-topo-csv">CSV</button>
-          <button class="secondary" id="btn-export-topo-png">PNG</button>
-          <button class="secondary" id="btn-present-mode">Présenter</button>
-          <button class="secondary" id="btn-refresh-topology">Rafraîchir</button>
+        </div>
+        <div class="topo-toolbar-group">
+          <button class="secondary" id="btn-export-topo-csv" type="button">CSV</button>
+          <button class="secondary" id="btn-export-topo-png" type="button">PNG</button>
+          <button class="secondary" id="btn-present-mode" type="button">Plein écran</button>
+          <button id="btn-refresh-topology" type="button">Rafraîchir</button>
         </div>
       </div>
 
       <div class="topo-layout">
       <div id="topology-wrap" class="topology-pro">
+        <div class="topo-grid-bg" aria-hidden="true"></div>
         <canvas id="wind-canvas"></canvas>
         <div id="network-graph"></div>
         <div id="topo-empty" class="topo-empty hidden">
           <div class="icon">◈</div>
-          <strong>Pas encore de carte</strong>
-          <p>Lance un <em>scan ARP</em> (Discovery) puis reviens ici.</p>
+          <strong>Carte vide</strong>
+          <p>Lance un <em>scan ARP</em> (Découverte) pour dessiner le réseau.</p>
         </div>
-        <div id="topo-panel">
-          <div class="tp-title">RÉSEAU</div>
+        <div id="topo-panel" class="topo-hud">
+          <div class="tp-title">◆ RÉSEAU</div>
           <div class="tp-row"><span class="tp-label">SUBNET</span><span class="tp-value" id="tp-subnet">—</span></div>
           <div class="tp-row"><span class="tp-label">GATEWAY</span><span class="tp-value" id="tp-gateway">—</span></div>
           <div class="tp-row"><span class="tp-label">DEVICES</span><span class="tp-value" id="tp-devices">0</span></div>
@@ -314,7 +379,8 @@
           <div class="tp-row"><span class="tp-label">SUBNETS</span><span class="tp-value" id="tp-subnets">—</span></div>
         </div>
         <div id="topo-legend" class="topo-legend-icons" title="Clique pour filtrer par type">
-          <button type="button" class="leg-item" data-role=""><img src="/static/img/devices/unknown.svg" alt=""> Tous</button>
+          <span class="leg-hint">FILTRER</span>
+          <button type="button" class="leg-item active" data-role=""><img src="/static/img/devices/unknown.svg" alt=""> Tous</button>
           <button type="button" class="leg-item" data-role="gateway"><img src="/static/img/devices/gateway.svg" alt=""> Gateway</button>
           <button type="button" class="leg-item" data-role="ap"><img src="/static/img/devices/ap.svg" alt=""> AP</button>
           <button type="button" class="leg-item" data-role="android"><img src="/static/img/devices/android.svg" alt=""> Android</button>
@@ -328,8 +394,8 @@
         </div>
       </div>
       <aside id="topo-detail" class="topo-detail">
-        <div class="tp-title">DÉTAIL HÔTE</div>
-        <p class="muted small" id="topo-detail-empty">Clique un nœud sur le graphe.</p>
+        <div class="tp-title">◆ DÉTAIL HÔTE</div>
+        <p class="muted small" id="topo-detail-empty">Sélectionne un nœud sur la carte pour afficher ses détails.</p>
         <div id="topo-detail-body" class="hidden">
           <div class="topo-detail-head">
             <img id="td-icon" src="/static/img/devices/unknown.svg" alt="" width="48" height="48">
@@ -371,8 +437,17 @@
             <div class="controls-row" style="margin-top:8px;gap:6px;flex-wrap:wrap;">
               <button class="mini secondary" id="btn-quick-ping" type="button">Ping</button>
               <button class="mini secondary" id="btn-quick-trace" type="button">Trace</button>
+              <button class="mini secondary" id="btn-quick-banner" type="button">Banner</button>
               <button class="mini secondary" id="btn-quick-nmap" type="button">Nmap</button>
+              <button class="mini secondary" id="btn-quick-nmap-vuln" type="button">Nmap+CVE</button>
+              <button class="mini secondary" id="btn-quick-ports" type="button">Ports</button>
+              <button class="mini secondary" id="btn-quick-http" type="button">HTTP</button>
+              <button class="mini secondary" id="btn-quick-tls" type="button">TLS</button>
+              <button class="mini secondary" id="btn-quick-ssh" type="button">SSH</button>
+              <button class="mini secondary" id="btn-quick-dns" type="button">DNS</button>
+              <button class="mini secondary" id="btn-quick-whois" type="button">WHOIS</button>
               <button class="mini secondary" id="btn-quick-wol" type="button">WOL</button>
+              <button class="mini secondary" id="btn-quick-ai" type="button">AI</button>
               <button class="mini secondary" id="btn-add-finding" type="button">+ Finding</button>
             </div>
             <div id="td-default-cred" class="muted small" style="margin-top:8px;"></div>
@@ -393,9 +468,13 @@
       <div class="view-header">
         <div>
           <h1>Attack Surface</h1>
-          <p>Services exposés · scoring · recommandations de durcissement.</p>
+          <p>Expositions · CVE context · commandes L0p4Map par hôte · scoring.</p>
         </div>
-        <button id="btn-refresh-attack">Actualiser</button>
+        <div class="controls-row">
+          <button class="secondary" id="btn-as-ai" type="button">🤖 AI Analyse</button>
+          <button class="secondary" id="btn-as-vuln" type="button">CVE</button>
+          <button id="btn-refresh-attack" type="button">Actualiser</button>
+        </div>
       </div>
 
       <div class="stat-grid" style="margin-bottom:18px;">
@@ -403,6 +482,46 @@
         <div class="stat-card"><div class="v" id="as-critique">0</div><div class="l">Critiques</div></div>
         <div class="stat-card"><div class="v" id="as-haute">0</div><div class="l">Hautes</div></div>
         <div class="stat-card"><div class="v" id="as-score">—</div><div class="l">Score / Grade</div></div>
+      </div>
+
+      <div class="panel" id="as-cmds-global">
+        <h2>Commandes L0p4Map (cible sélectionnée)</h2>
+        <div class="controls-row" style="margin-bottom:8px;">
+          <input type="text" id="as-target" placeholder="IP hôte (ou clic sur un hôte ci-dessous)" style="width:200px" autocomplete="off">
+          <input type="text" id="as-port" placeholder="port" value="80" style="width:80px">
+          <input type="text" id="as-mac" placeholder="MAC (WOL)" style="width:150px">
+        </div>
+        <div class="action-bar" style="margin:0;">
+          <div class="action-group primary">
+            <span class="action-label">Recon</span>
+            <button class="secondary mini" type="button" data-as-act="ping">Ping</button>
+            <button class="secondary mini" type="button" data-as-act="traceroute">Traceroute</button>
+            <button class="secondary mini" type="button" data-as-act="banner">Banner</button>
+            <button class="secondary mini" type="button" data-as-act="port-check">Port check</button>
+            <button class="secondary mini" type="button" data-as-act="port-scan">Port scan</button>
+          </div>
+          <div class="action-group">
+            <span class="action-label">Nmap</span>
+            <button class="secondary mini" type="button" data-as-act="nmap-light">Nmap light</button>
+            <button class="secondary mini" type="button" data-as-act="nmap-full">Nmap full</button>
+            <button class="secondary mini" type="button" data-as-act="nmap-vuln">Nmap+vuln</button>
+          </div>
+          <div class="action-group">
+            <span class="action-label">Web / TLS</span>
+            <button class="secondary mini" type="button" data-as-act="http">HTTP</button>
+            <button class="secondary mini" type="button" data-as-act="tls">TLS</button>
+            <button class="secondary mini" type="button" data-as-act="ssh-keyscan">SSH keys</button>
+          </div>
+          <div class="action-group">
+            <span class="action-label">Intel</span>
+            <button class="secondary mini" type="button" data-as-act="dns">DNS</button>
+            <button class="secondary mini" type="button" data-as-act="dig">Dig</button>
+            <button class="secondary mini" type="button" data-as-act="whois">WHOIS</button>
+            <button class="secondary mini" type="button" data-as-act="wol">WOL</button>
+            <button class="secondary mini" type="button" data-as-act="ai-host">AI hôte</button>
+          </div>
+        </div>
+        <pre id="as-cmd-out" class="code-out" style="margin-top:12px;max-height:180px;">Sélectionne un hôte puis une commande L0p4…</pre>
       </div>
 
       <div class="panel" id="as-recs-panel" style="display:none;">
@@ -563,25 +682,59 @@
       <div class="view-header">
         <div>
           <h1>Outils réseau</h1>
-          <p>Ping · Traceroute · Banner · DNS · TLS inspect.</p>
+          <p>Ping · Trace · Banner · DNS/Dig · TLS · HTTP · Ports · WHOIS · Subnet · MAC · SSH · MTU · Neighbors · Routes.</p>
         </div>
       </div>
 
       <div class="panel">
         <h2>Cible</h2>
         <div class="controls-row">
-          <input type="text" id="tool-target" placeholder="IP ou hostname" style="width:220px" autocomplete="off">
-          <input type="text" id="tool-port" placeholder="port" value="80" style="width:100px">
-          <button id="btn-ping">Ping</button>
-          <button class="secondary" id="btn-traceroute">Traceroute</button>
-          <button class="secondary" id="btn-banner">Banner</button>
-          <button class="secondary" id="btn-dns">DNS</button>
-          <button class="secondary" id="btn-tls">TLS</button>
+          <input type="text" id="tool-target" placeholder="IP, hostname, CIDR ou MAC" style="width:260px" autocomplete="off">
+          <input type="text" id="tool-port" placeholder="port" value="80" style="width:90px">
+          <input type="text" id="tool-extra" placeholder="ports (scan) ou path HTTP" style="width:200px" title="Ports ex: 22,80,443 ou path /admin">
+        </div>
+      </div>
+
+      <div class="action-bar">
+        <div class="action-group primary">
+          <span class="action-label">Base</span>
+          <button id="btn-ping" type="button">Ping</button>
+          <button class="secondary" id="btn-traceroute" type="button">Traceroute</button>
+          <button class="secondary" id="btn-banner" type="button">Banner</button>
+          <button class="secondary" id="btn-port-check" type="button">Port check</button>
+          <button class="secondary" id="btn-port-scan" type="button">Port scan</button>
+        </div>
+        <div class="action-group">
+          <span class="action-label">DNS / Web</span>
+          <button class="secondary" id="btn-dns" type="button">DNS</button>
+          <button class="secondary" id="btn-dig" type="button">Dig full</button>
+          <button class="secondary" id="btn-tls" type="button">TLS</button>
+          <button class="secondary" id="btn-http" type="button">HTTP</button>
+          <button class="secondary" id="btn-whois" type="button">WHOIS</button>
+        </div>
+        <div class="action-group">
+          <span class="action-label">Local</span>
+          <button class="secondary" id="btn-neighbors" type="button">Neighbors</button>
+          <button class="secondary" id="btn-routes" type="button">Routes</button>
+          <button class="secondary" id="btn-listening" type="button">Listeners</button>
+          <button class="secondary" id="btn-subnet" type="button">Subnet calc</button>
+          <button class="secondary" id="btn-mac" type="button">MAC OUI</button>
+        </div>
+        <div class="action-group">
+          <span class="action-label">Probes</span>
+          <button class="secondary" id="btn-ssh-keyscan" type="button">SSH keys</button>
+          <button class="secondary" id="btn-mtu" type="button">MTU path</button>
         </div>
       </div>
 
       <div class="panel">
-        <h2>Résultat</h2>
+        <div class="view-header" style="margin-bottom:10px;padding:0;">
+          <div>
+            <h2 style="margin:0;">Résultat</h2>
+            <p class="muted small" id="tool-meta" style="margin:4px 0 0;">Sélectionne une action…</p>
+          </div>
+          <button class="secondary mini" id="btn-tool-clear" type="button">Effacer</button>
+        </div>
         <pre id="tool-output" class="code-out">Sélectionne une action…</pre>
       </div>
     </div>
@@ -670,7 +823,7 @@
       <div class="view-header">
         <div>
           <h1>Historique &amp; scans</h1>
-          <p>Recharge un scan passé · actions session · overrides manuels.</p>
+          <p>Recharge un scan passé · nettoie hôtes / session · overrides.</p>
         </div>
         <div class="controls-row">
           <select id="hist-kind-filter" style="min-width:140px">
@@ -682,6 +835,8 @@
             <option value="network">Network</option>
           </select>
           <button class="secondary" id="btn-refresh-scans">Rafraîchir</button>
+          <button class="secondary" id="btn-clear-scans" type="button" title="Supprimer les scans enregistrés">Vider scans</button>
+          <button class="secondary" id="btn-clear-session" type="button" title="Vider la session runtime (ARP/nmap en mémoire)">Vider session</button>
         </div>
       </div>
 
@@ -703,9 +858,50 @@
         </div>
       </div>
 
+      <div class="two-col">
+        <div class="panel">
+          <div class="controls-row" style="justify-content:space-between;margin-bottom:8px;">
+            <h2 style="margin:0">Hôtes connus</h2>
+            <button class="secondary mini" id="btn-clear-known" type="button">Tout supprimer</button>
+          </div>
+          <p class="muted small">Historique des appareils déjà vus (DB). Supprimer = oubli pour les alertes « nouveau ».</p>
+          <div style="overflow-x:auto;max-height:280px;">
+            <table>
+              <thead><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Vu</th><th></th></tr></thead>
+              <tbody id="known-hosts-tbody">
+                <tr><td colspan="5" class="muted">Chargement…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="controls-row" style="justify-content:space-between;margin-bottom:8px;">
+            <h2 style="margin:0">Ignorés (blacklist)</h2>
+            <button class="secondary mini" id="btn-clear-ignored" type="button">Vider</button>
+          </div>
+          <p class="muted small">Ces MAC/IP sont filtrés des prochains scans ARP et ne réapparaissent pas.</p>
+          <div class="controls-row" style="margin-bottom:10px;">
+            <input type="text" id="ignore-key-input" placeholder="MAC ou IP à ignorer" style="flex:1;min-width:160px">
+            <button class="secondary mini" id="btn-add-ignore" type="button">Ignorer</button>
+          </div>
+          <div id="ignored-hosts-list" class="muted small">Aucun.</div>
+        </div>
+      </div>
+
       <div class="panel">
-        <h2>Journal session</h2>
+        <div class="controls-row" style="justify-content:space-between;margin-bottom:8px;">
+          <h2 style="margin:0">Journal session</h2>
+          <button class="secondary mini" id="btn-clear-history" type="button">Vider journal</button>
+        </div>
         <div id="history-list-full" class="empty-state" style="padding:24px;"><div class="icon">◌</div>Aucune action.</div>
+      </div>
+
+      <div class="panel">
+        <div class="controls-row" style="justify-content:space-between;margin-bottom:8px;">
+          <h2 style="margin:0">Findings</h2>
+          <button class="secondary mini" id="btn-clear-findings" type="button">Tout supprimer</button>
+        </div>
+        <div id="findings-cleanup-list" class="muted small">Aucun finding.</div>
       </div>
 
       <div class="panel">
@@ -732,10 +928,41 @@
 </aside>
 <div id="drawer-backdrop" class="drawer-backdrop hidden"></div>
 
-<div id="activity-log"></div>
+<div id="activity-log" style="display:none!important" aria-hidden="true"></div>
+
+<div id="btn-toggle-dark" style="display:none"></div>
+<div id="dr-explain" style="display:none"></div>
+<div id="dr-nmap" style="display:none"></div>
+<div id="dr-ping" style="display:none"></div>
+<div id="dr-tr" style="display:none"></div>
+<div id="present-hint" style="display:none"></div>
+
 <div id="toast-root"></div>
 
+<!-- Core utilities -->
 <script src="{{ url_for('static', filename='js/wind.js') }}"></script>
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/toast.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/core.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/live.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/skeletons.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/search.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard-charts.js') }}?v={{ version }}"></script>
+<!-- App modules (split from app.js monolith) -->
+<script src="{{ url_for('static', filename='js/ui.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/jobs.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/arp.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/nmap.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/attack.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/vuln.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/traffic.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/tools.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/topology.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/drawer.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/intel.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/ai.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/sahel.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/cleanup.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/init.js') }}?v={{ version }}"></script>
 </body>
 </html>

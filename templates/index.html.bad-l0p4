@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HARMATTAN — Network Intelligence</title>
+<meta name="description" content="Suite d'audit réseau professionnelle — ARP, nmap, topologie, CVE, trafic.">
+<meta name="theme-color" content="#06080d">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop stop-color='%23ff8c28'/><stop offset='1' stop-color='%232dd4bf'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='%230a0e16'/><text x='50' y='68' text-anchor='middle' font-size='52' fill='url(%23g)' font-family='system-ui'>◆</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ version }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}?v={{ version }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/modern.css') }}?v={{ version }}">
+<script src="https://unpkg.com/vis-network@9.1.9/dist/vis-network.min.js"></script>
+
+<script>window.HARMATTAN_IDENTITY_URL = "http://127.0.0.1:8076";</script>
+<script src="http://127.0.0.1:8076/static/sso.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  /* No SSO bottom banner — clean L0p4-style chrome */
+  if (!window.HarmattanSSO) return;
+  try { await HarmattanSSO.me(); } catch (_) {}
+});
+</script>
+<script>window.HARMATTAN_TOKEN = {{ token|tojson }}; window.HARMATTAN_VERSION = {{ version|tojson }};</script>
+</head>
+<body class="harmattan-v4">
+
+<div class="shell">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">◆</div>
+      <div class="brand-text">
+        <span class="brand-title">HARMATTAN</span>
+        <small>Network Intelligence · v{{ version }}</small>
+      </div>
+    </div>
+    <div class="status-cluster">
+      <div class="status-pill" id="btn-toggle-dark" style="cursor:pointer;" title="Mode clair / sombre">◐ Thème</div>
+      <div class="status-pill" id="btn-notifications" style="cursor:pointer;" title="Notifications">🔔 Alerts</div>
+      <div class="status-pill" id="status-scapy"><span class="led"></span> Scapy</div>
+      <div class="status-pill" id="status-nmap"><span class="led"></span> Nmap</div>
+      <div class="status-pill" id="status-root"><span class="led"></span> Privs</div>
+      <div class="wifi-chip" id="wifi-chip" title="Contexte Wi‑Fi">
+        <span class="ssid" id="chip-ssid">—</span>
+        <span class="sep">·</span>
+        <span id="chip-gateway">gw —</span>
+      </div>
+    </div>
+  </header>
+
+  <nav class="sidebar" aria-label="Navigation principale">
+    <div class="nav-section">Vue</div>
+    <div class="nav-item active" data-view="dashboard"><span class="ico">◈</span> Dashboard <span class="n">00</span></div>
+    <div class="nav-item" data-view="discovery"><span class="ico">📡</span> Découverte ARP <span class="n">01</span></div>
+    <div class="nav-item" data-view="scan"><span class="ico">🎯</span> Scan Nmap <span class="n">02</span></div>
+    <div class="nav-item" data-view="topology"><span class="ico">🕸</span> Topologie <span class="n">03</span></div>
+
+    <div class="nav-section">Sécurité</div>
+    <div class="nav-item" data-view="attack"><span class="ico">🛡</span> Attack Surface <span class="n">04</span></div>
+    <div class="nav-item" data-view="vuln"><span class="ico">⚠</span> Vulnérabilités <span class="n">05</span></div>
+    <div class="nav-item" data-view="traffic"><span class="ico">〰</span> Trafic <span class="n">06</span></div>
+
+    <div class="nav-section">Ops</div>
+    <div class="nav-item" data-view="tools"><span class="ico">⚙</span> Outils <span class="n">07</span></div>
+    <div class="nav-item" data-view="intel"><span class="ico">✦</span> Intel <span class="n">08</span></div>
+    <div class="nav-item" data-view="history"><span class="ico">◷</span> Historique <span class="n">09</span></div>
+
+    <div class="sidebar-footer">
+      HARMATTAN v{{ version }}<br>
+      Authorized networks only.
+      <div class="sidebar-badge">L0p4 STYLE · ADV</div>
+    </div>
+  </nav>
+
+  <div class="main">
+
+    <!-- JOB BAR -->
+    <div id="job-bar" class="job-bar hidden">
+      <div class="job-meta">
+        <span id="job-kind">job</span>
+        <span id="job-pct" class="job-pct">0%</span>
+        <span id="job-msg">…</span>
+      </div>
+      <div class="job-track"><div id="job-fill" class="job-fill"></div></div>
+      <span id="job-queue" class="job-queue muted" title="Jobs actifs"></span>
+      <button class="mini danger" id="btn-job-cancel" type="button">Annuler</button>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="view active" id="view-dashboard">
+      <section class="hero">
+        <div class="hero-inner">
+          <div>
+            <h1>NETWORK MAP</h1>
+            <p>Cartographie avancée · nmap · attack surface · AI · exports — style L0p4, plus complet.</p>
+          </div>
+          <div class="hero-actions">
+            <button id="btn-home-scan" type="button">Scan maison</button>
+            <button id="btn-ai-analyze" class="cyan" type="button">AI Analyst</button>
+            <button class="secondary" id="btn-export-report" type="button">Rapport HTML</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="action-bar">
+        <div class="action-group primary">
+          <span class="action-label">Scan</span>
+          <button class="secondary" id="btn-diff-arp" type="button">Δ Diff ARP</button>
+          <button class="secondary" id="btn-range-map" type="button">🗺 Range map</button>
+        </div>
+        <div class="action-group">
+          <span class="action-label">Export</span>
+          <button class="secondary" id="btn-export-pdf" type="button">PDF</button>
+          <button class="secondary" id="btn-export-docx" type="button">DOCX</button>
+          <button class="secondary" id="btn-export-json" type="button">JSON</button>
+          <button class="secondary" id="btn-export-session" type="button">Session</button>
+        </div>
+        <div class="action-group">
+          <span class="action-label">Intel</span>
+          <button class="secondary" id="btn-mdns" type="button">mDNS/SSDP</button>
+          <button class="secondary" id="btn-default-creds" type="button">⚠ Creds</button>
+          <button class="secondary" id="btn-export-stix" type="button">STIX</button>
+          <button class="secondary" id="btn-export-graphml" type="button">GraphML</button>
+        </div>
+        <div class="action-group">
+          <span class="action-label">Suite</span>
+          <button class="secondary" id="btn-export-sahel" type="button">↓ SAHEL</button>
+          <button class="secondary" id="btn-push-sahel" type="button">↑ Push SAHEL</button>
+          <button class="secondary" id="btn-export-pt" type="button">→ PT</button>
+          <button class="secondary" id="btn-monitor-toggle" type="button">Monitor</button>
+          <button class="secondary" id="btn-sched-toggle" type="button">⏱ Sched</button>
+        </div>
+      </div>
+
+      <div class="stat-grid" style="margin-bottom:18px;">
+        <div class="stat-card glow"><div class="v" id="dash-hosts">0</div><div class="l">Appareils</div></div>
+        <div class="stat-card glow"><div class="v" id="dash-exposures">0</div><div class="l">Expositions</div></div>
+        <div class="stat-card glow crit"><div class="v" id="dash-critical">0</div><div class="l">Risques critiques</div></div>
+        <div class="stat-card glow"><div class="v" id="dash-grade">—</div><div class="l">Grade réseau</div></div>
+        <div class="stat-card glow cyan"><div class="v" id="dash-ssid">—</div><div class="l">SSID Wi‑Fi</div></div>
+      </div>
+
+      <div class="panel ai-panel hidden" id="ai-analysis-panel">
+        <div class="view-header" style="margin-bottom:10px;padding:0;">
+          <div>
+            <h2 style="margin:0;">Analyse Cognitive (AI Network v3)</h2>
+            <p class="muted small" id="ai-summary" style="margin:4px 0 0;">Analyse en cours…</p>
+            <div id="ai-meta" class="muted small" style="margin-top:6px;"></div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:flex-start;">
+            <button class="secondary mini" id="btn-ai-refresh" type="button">Relancer</button>
+            <button class="secondary mini" id="btn-ai-close" type="button">Fermer</button>
+          </div>
+        </div>
+        <div class="two-col">
+          <div>
+            <h3>Priorités d'action</h3>
+            <ul id="ai-priorities" class="rec-list"></ul>
+            <h3 style="margin-top:14px;">Quick wins</h3>
+            <ul id="ai-quickwins" class="rec-list"></ul>
+            <h3 style="margin-top:14px;">MITRE ATT&amp;CK</h3>
+            <div id="ai-mitre" class="muted small">—</div>
+          </div>
+          <div>
+            <h3>Posture &amp; conseils</h3>
+            <p id="ai-advice" class="muted small"></p>
+            <div id="ai-posture" class="muted small" style="margin-top:8px;"></div>
+            <div id="ai-remediation-links" style="margin-top:10px;"></div>
+            <h3 style="margin-top:14px;">Hôtes prioritaires</h3>
+            <div id="ai-hot-hosts" class="muted small">—</div>
+            <h3 style="margin-top:14px;">Services à risque</h3>
+            <div id="ai-insecure" class="muted small">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel health-panel" id="health-panel">
+        <div class="view-header" style="margin-bottom:10px;padding:0;">
+          <div>
+            <h2 style="margin:0;">Santé système</h2>
+            <p class="muted small" style="margin:4px 0 0;">Scapy · Nmap · auth · monitor · inventaire</p>
+          </div>
+          <button class="secondary mini" id="btn-refresh-health" type="button">Rafraîchir</button>
+        </div>
+        <div class="health-grid" id="health-grid">
+          <div class="health-item"><span class="hk">Version</span><span class="hv" id="h-version">—</span></div>
+          <div class="health-item"><span class="hk">Scapy</span><span class="hv" id="h-scapy">—</span></div>
+          <div class="health-item"><span class="hk">Nmap</span><span class="hv" id="h-nmap">—</span></div>
+          <div class="health-item"><span class="hk">Auth</span><span class="hv" id="h-auth">—</span></div>
+          <div class="health-item"><span class="hk">Monitor</span><span class="hv" id="h-monitor">—</span></div>
+          <div class="health-item"><span class="hk">Hôtes connus</span><span class="hv" id="h-known">—</span></div>
+          <div class="health-item"><span class="hk">Overrides</span><span class="hv" id="h-overrides">—</span></div>
+          <div class="health-item"><span class="hk">Jobs actifs</span><span class="hv" id="h-jobs">—</span></div>
+        </div>
+      </div>
+
+      <!-- Diff ARP pro -->
+      <div class="panel" id="diff-arp-panel" style="display:none;">
+        <div class="view-header" style="margin-bottom:12px;padding:0;">
+          <div>
+            <h2 style="margin:0;">Δ Diff ARP — historique scans</h2>
+            <p class="muted small" id="diff-arp-summary" style="margin:4px 0 0;">—</p>
+          </div>
+          <button class="secondary" id="btn-diff-close" type="button">Fermer</button>
+        </div>
+        <div class="stat-grid" style="margin-bottom:12px;">
+          <div class="stat-card"><div class="v" id="diff-n-plus">0</div><div class="l">Apparus</div></div>
+          <div class="stat-card"><div class="v" id="diff-n-minus">0</div><div class="l">Disparus</div></div>
+          <div class="stat-card"><div class="v" id="diff-n-chg">0</div><div class="l">Modifiés</div></div>
+        </div>
+        <div class="two-col">
+          <div>
+            <h3 style="font-size:12px;color:var(--green);">+ Apparus</h3>
+            <div style="overflow-x:auto;"><table>
+              <thead><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Rôle</th></tr></thead>
+              <tbody id="diff-appeared"></tbody>
+            </table></div>
+          </div>
+          <div>
+            <h3 style="font-size:12px;color:var(--red);">− Disparus</h3>
+            <div style="overflow-x:auto;"><table>
+              <thead><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Rôle</th></tr></thead>
+              <tbody id="diff-disappeared"></tbody>
+            </table></div>
+          </div>
+        </div>
+        <h3 style="font-size:12px;color:var(--orange);margin-top:14px;">~ Modifiés</h3>
+        <div style="overflow-x:auto;"><table>
+          <thead><tr><th>IP</th><th>Changements</th></tr></thead>
+          <tbody id="diff-changed"></tbody>
+        </table></div>
+      </div>
+
+      <div class="panel">
+        <h2>Contexte réseau</h2>
+        <div class="controls-row" style="margin-bottom:12px;">
+          <select id="iface-select" style="min-width:200px"><option value="">Interface auto</option></select>
+          <button class="secondary" id="btn-refresh-net">Rafraîchir</button>
+        </div>
+        <div class="info-grid" id="net-info-grid">
+          <div class="info-item"><span class="k">Subnet</span><span class="val" id="info-subnet">—</span></div>
+          <div class="info-item"><span class="k">IP locale</span><span class="val" id="info-local-ip">—</span></div>
+          <div class="info-item"><span class="k">Gateway</span><span class="val" id="info-gateway">—</span></div>
+          <div class="info-item"><span class="k">SSID</span><span class="val" id="info-ssid">—</span></div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h2>Répartition des rôles</h2>
+          <div id="role-breakdown" class="empty-state" style="padding:24px;"><div class="icon">◌</div>Lance un scan pour classifier les appareils.</div>
+        </div>
+        <div class="panel">
+          <h2>Historique session</h2>
+          <div id="history-list" class="empty-state" style="padding:24px;"><div class="icon">◌</div>Aucune action pour l’instant.</div>
+        </div>
+      </div>
+
+      <div class="panel" id="new-devices-panel" style="display:none;">
+        <h2>⚠ Nouveaux appareils détectés</h2>
+        <div id="new-devices-list"></div>
+      </div>
+    </div>
+
+    <!-- ARP -->
+    <div class="view" id="view-discovery">
+      <div class="view-header">
+        <div>
+          <h1>Découverte ARP</h1>
+          <p>Scan broadcast + fingerprinting (OUI, hostname, TTL/OS, ports, rôle).</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Configuration</h2>
+        <div class="controls-row">
+          <input type="text" id="arp-subnet" value="{{ default_subnet }}" placeholder="192.168.1.0/24" style="width:220px" autocomplete="off">
+          <label class="check-label"><input type="checkbox" id="arp-enrich" checked> Fingerprint complet</label>
+          <button id="btn-arp-scan">Lancer le scan ARP</button>
+          <span style="font-size:11px; color:var(--text-low);">Détecté : <span id="default-subnet-hint"></span></span>
+        </div>
+        <div class="controls-row" style="margin-top:10px;">
+          <input type="search" id="arp-filter" placeholder="Filtrer IP / MAC / vendor / rôle…" style="width:280px">
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Hôtes découverts</h2>
+        <div id="arp-results">
+          <div class="empty-state"><div class="icon">◌</div>Aucun scan effectué pour l’instant.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NMAP -->
+    <div class="view" id="view-scan">
+      <div class="view-header">
+        <div>
+          <h1>Scan Nmap</h1>
+          <p>Ports, services, OS, banners, vulners — jobs asynchrones.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Configuration</h2>
+        <div class="controls-row">
+          <select id="nmap-target"><option value="">— Hôte découvert —</option></select>
+          <input type="text" id="nmap-target-manual" placeholder="IP / domaine / CIDR" style="width:180px" autocomplete="off">
+          <select id="nmap-profile">
+            <option value="quick">Rapide (top 100) · ~1min</option>
+            <option value="service">Services + versions · ~5min</option>
+            <option value="os">Détection OS · ~5min</option>
+            <option value="full">Tous les ports · long</option>
+            <option value="stealth">Discret SYN · ~10min</option>
+            <option value="udp">UDP top 50 · long</option>
+            <option value="banner">Banner grab NSE</option>
+            <option value="vuln">Scripts vuln</option>
+            <option value="vulners">Vulners CVE</option>
+            <option value="default_creds">Default accounts</option>
+          </select>
+          <button id="btn-nmap-scan">Lancer nmap</button>
+        </div>
+      </div>
+
+      <div id="nmap-results">
+        <div class="empty-state"><div class="icon">◌</div>Aucun scan effectué pour l’instant.</div>
+      </div>
+    </div>
+
+    <!-- TOPOLOGY -->
+    <div class="view" id="view-topology">
+      <div class="view-header">
+        <div>
+          <h1>Topologie Réseau</h1>
+          <p>Cartographie · filtre · recherche · détail hôte (ports / CVE).</p>
+        </div>
+        <div class="controls-row">
+          <input type="search" id="topo-search" placeholder="Rechercher IP / host…" style="width:160px">
+          <select id="topo-filter-role" style="min-width:140px">
+            <option value="">Tous les types</option>
+            <option value="gateway">Gateway</option>
+            <option value="ap">AP / Wi‑Fi</option>
+            <option value="router">Router</option>
+            <option value="switch">Switch</option>
+            <option value="pc">PC</option>
+            <option value="server">Serveur</option>
+            <option value="android">Android</option>
+            <option value="apple">Apple</option>
+            <option value="mobile">Mobile</option>
+            <option value="tv">TV / STB</option>
+            <option value="printer">Imprimante</option>
+            <option value="camera">Caméra</option>
+            <option value="iot">IoT</option>
+            <option value="raspberry">Raspberry</option>
+            <option value="vm">VM</option>
+            <option value="self">Ce poste</option>
+          </select>
+          <button class="secondary" id="btn-layout-toggle">Hiérarchique</button>
+          <button class="secondary" id="btn-topo-fit">Ajuster</button>
+          <button class="secondary" id="btn-live-toggle">Live OFF</button>
+          <select id="live-interval">
+            <option value="30">30s</option>
+            <option value="60" selected>60s</option>
+            <option value="120">120s</option>
+          </select>
+          <button class="secondary" id="btn-export-topo-csv">CSV</button>
+          <button class="secondary" id="btn-export-topo-png">PNG</button>
+          <button class="secondary" id="btn-present-mode">Présenter</button>
+          <button class="secondary" id="btn-refresh-topology">Rafraîchir</button>
+        </div>
+      </div>
+
+      <div class="topo-layout">
+      <div id="topology-wrap" class="topology-pro">
+        <canvas id="wind-canvas"></canvas>
+        <div id="network-graph"></div>
+        <div id="topo-empty" class="topo-empty hidden">
+          <div class="icon">◈</div>
+          <strong>Pas encore de carte</strong>
+          <p>Lance un <em>scan ARP</em> (Discovery) puis reviens ici.</p>
+        </div>
+        <div id="topo-panel">
+          <div class="tp-title">RÉSEAU</div>
+          <div class="tp-row"><span class="tp-label">SUBNET</span><span class="tp-value" id="tp-subnet">—</span></div>
+          <div class="tp-row"><span class="tp-label">GATEWAY</span><span class="tp-value" id="tp-gateway">—</span></div>
+          <div class="tp-row"><span class="tp-label">DEVICES</span><span class="tp-value" id="tp-devices">0</span></div>
+          <div class="tp-row"><span class="tp-label">INTERMED.</span><span class="tp-value" id="tp-intermediates">0</span></div>
+          <div class="tp-row"><span class="tp-label">FILTRE</span><span class="tp-value" id="tp-filter">tous</span></div>
+          <div class="tp-row"><span class="tp-label">SUBNETS</span><span class="tp-value" id="tp-subnets">—</span></div>
+        </div>
+        <div id="topo-legend" class="topo-legend-icons" title="Clique pour filtrer par type">
+          <button type="button" class="leg-item" data-role=""><img src="/static/img/devices/unknown.svg" alt=""> Tous</button>
+          <button type="button" class="leg-item" data-role="gateway"><img src="/static/img/devices/gateway.svg" alt=""> Gateway</button>
+          <button type="button" class="leg-item" data-role="ap"><img src="/static/img/devices/ap.svg" alt=""> AP</button>
+          <button type="button" class="leg-item" data-role="android"><img src="/static/img/devices/android.svg" alt=""> Android</button>
+          <button type="button" class="leg-item" data-role="apple"><img src="/static/img/devices/apple.svg" alt=""> Apple</button>
+          <button type="button" class="leg-item" data-role="pc"><img src="/static/img/devices/pc.svg" alt=""> PC</button>
+          <button type="button" class="leg-item" data-role="server"><img src="/static/img/devices/server.svg" alt=""> Server</button>
+          <button type="button" class="leg-item" data-role="printer"><img src="/static/img/devices/printer.svg" alt=""> Print</button>
+          <button type="button" class="leg-item" data-role="camera"><img src="/static/img/devices/camera.svg" alt=""> Cam</button>
+          <button type="button" class="leg-item" data-role="iot"><img src="/static/img/devices/iot.svg" alt=""> IoT</button>
+          <button type="button" class="leg-item" data-role="tv"><img src="/static/img/devices/tv.svg" alt=""> TV</button>
+        </div>
+      </div>
+      <aside id="topo-detail" class="topo-detail">
+        <div class="tp-title">DÉTAIL HÔTE</div>
+        <p class="muted small" id="topo-detail-empty">Clique un nœud sur le graphe.</p>
+        <div id="topo-detail-body" class="hidden">
+          <div class="topo-detail-head">
+            <img id="td-icon" src="/static/img/devices/unknown.svg" alt="" width="48" height="48">
+            <div class="topo-detail-ip" id="td-ip">—</div>
+          </div>
+          <div class="tp-row"><span class="tp-label">Hostname</span><span class="tp-value" id="td-host">—</span></div>
+          <div class="tp-row"><span class="tp-label">MAC</span><span class="tp-value" id="td-mac">—</span></div>
+          <div class="tp-row"><span class="tp-label">Vendor</span><span class="tp-value" id="td-vendor">—</span></div>
+          <div class="tp-row"><span class="tp-label">Type</span><span class="tp-value" id="td-role">—</span></div>
+          <div class="tp-row"><span class="tp-label">OS</span><span class="tp-value" id="td-os">—</span></div>
+          <div class="override-box">
+            <h3 style="font-size:11px;margin:12px 0 6px;color:var(--cyan);">Corriger le type / label</h3>
+            <select id="td-role-select">
+              <option value="">— auto —</option>
+              <option value="gateway">Gateway</option>
+              <option value="ap">AP / Wi‑Fi</option>
+              <option value="router">Router</option>
+              <option value="switch">Switch</option>
+              <option value="pc">PC</option>
+              <option value="server">Serveur</option>
+              <option value="android">Android</option>
+              <option value="apple">Apple</option>
+              <option value="mobile">Mobile</option>
+              <option value="tv">TV / STB</option>
+              <option value="printer">Imprimante</option>
+              <option value="camera">Caméra</option>
+              <option value="iot">IoT</option>
+              <option value="raspberry">Raspberry</option>
+              <option value="vm">VM</option>
+              <option value="host">Hôte</option>
+            </select>
+            <input type="text" id="td-custom-label" placeholder="Label custom (double-clic L0p4Map)" style="width:100%;margin-top:6px;">
+            <input type="text" id="td-tags" placeholder="tags (iot, crit…)" style="width:100%;margin-top:6px;">
+            <input type="text" id="td-notes" placeholder="notes / finding" style="width:100%;margin-top:6px;">
+            <div class="controls-row" style="margin-top:8px;gap:6px;">
+              <button class="mini" id="btn-save-override" type="button">Enregistrer</button>
+              <button class="mini secondary" id="btn-clear-override" type="button">Reset</button>
+            </div>
+            <div class="controls-row" style="margin-top:8px;gap:6px;flex-wrap:wrap;">
+              <button class="mini secondary" id="btn-quick-ping" type="button">Ping</button>
+              <button class="mini secondary" id="btn-quick-trace" type="button">Trace</button>
+              <button class="mini secondary" id="btn-quick-nmap" type="button">Nmap</button>
+              <button class="mini secondary" id="btn-quick-wol" type="button">WOL</button>
+              <button class="mini secondary" id="btn-add-finding" type="button">+ Finding</button>
+            </div>
+            <div id="td-default-cred" class="muted small" style="margin-top:8px;"></div>
+          </div>
+          <h3 style="font-size:11px;margin:12px 0 6px;color:var(--cyan);">Ports ouverts</h3>
+          <div id="td-ports" class="muted small">—</div>
+          <h3 style="font-size:11px;margin:12px 0 6px;color:var(--orange);">Expositions</h3>
+          <div id="td-exposures" class="muted small">—</div>
+          <h3 style="font-size:11px;margin:12px 0 6px;color:var(--red);">CVE</h3>
+          <div id="td-cves" class="muted small">—</div>
+        </div>
+      </aside>
+      </div>
+    </div>
+
+    <!-- ATTACK SURFACE -->
+    <div class="view" id="view-attack">
+      <div class="view-header">
+        <div>
+          <h1>Attack Surface</h1>
+          <p>Services exposés · scoring · recommandations de durcissement.</p>
+        </div>
+        <button id="btn-refresh-attack">Actualiser</button>
+      </div>
+
+      <div class="stat-grid" style="margin-bottom:18px;">
+        <div class="stat-card"><div class="v" id="as-total">0</div><div class="l">Expositions</div></div>
+        <div class="stat-card"><div class="v" id="as-critique">0</div><div class="l">Critiques</div></div>
+        <div class="stat-card"><div class="v" id="as-haute">0</div><div class="l">Hautes</div></div>
+        <div class="stat-card"><div class="v" id="as-score">—</div><div class="l">Score / Grade</div></div>
+      </div>
+
+      <div class="panel" id="as-recs-panel" style="display:none;">
+        <h2>Recommandations</h2>
+        <ul id="as-recs" class="rec-list"></ul>
+      </div>
+
+      <div class="controls-row" style="margin-bottom:12px;">
+        <input type="search" id="attack-filter" placeholder="Filtrer expositions…" style="width:260px">
+      </div>
+
+      <div id="attack-results">
+        <div class="empty-state"><div class="icon">◌</div>Lance un scan ARP ou nmap pour cartographier la surface d’attaque.</div>
+      </div>
+    </div>
+
+    <!-- VULN -->
+    <div class="view" id="view-vuln">
+      <div class="view-header">
+        <div>
+          <h1>Corrélation CVE</h1>
+          <p>NVD · cache local · services/versions nmap → CVE CVSS.</p>
+        </div>
+        <button id="btn-vuln-scan">Lancer la corrélation CVE</button>
+      </div>
+      <div id="vuln-results">
+        <div class="empty-state"><div class="icon">◌</div>Lance d’abord un scan nmap avec détection de services.</div>
+      </div>
+    </div>
+
+    <!-- TRAFFIC (Wireshark-like) -->
+    <div class="view" id="view-traffic">
+      <div class="view-header">
+        <div>
+          <h1>Trafic · Wireshark mode</h1>
+          <p>Liste paquets · dissection couches · hex dump · filtre display · PCAP.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div id="traffic-root-banner" class="warn-banner hidden">
+          Mode non-root : la capture live peut rester vide. Utilise <strong>Capture 10 s</strong> avec
+          <code>sudo ./harmattan.sh</code>, ou importe un PCAP.
+        </div>
+        <div class="controls-row">
+          <select id="traffic-iface" style="min-width:160px">
+            <option value="">Interface auto</option>
+          </select>
+          <input type="text" id="traffic-filter" placeholder="BPF capture (tcp port 80)" style="width:180px" title="Filtre capture libpcap">
+          <button id="btn-traffic-oneshot" title="Capture bloquante 10 secondes">⚡ Capture 10 s</button>
+          <button class="secondary" id="btn-traffic-start">Live</button>
+          <button class="danger" id="btn-traffic-stop" disabled>Stop</button>
+          <button class="secondary" id="btn-traffic-export">CSV</button>
+          <button class="secondary" id="btn-traffic-pcap">PCAP</button>
+          <button class="secondary" id="btn-traffic-clear" type="button">Vider</button>
+          <button class="secondary" id="btn-sahel-correlate" type="button" title="Corréler paquets avec alertes Sahel">⇄ Corréler Sahel</button>
+          <input type="file" id="traffic-pcap-file" accept=".pcap,.pcapng,.cap" style="max-width:180px">
+          <button class="secondary" id="btn-traffic-import-pcap">Import PCAP</button>
+        </div>
+        <div class="controls-row" style="margin-top:10px;">
+          <input type="text" id="display-filter" class="ws-display-filter" placeholder="Display filter: dns || http || tcp.port == 443 || ip.addr == 192.168.1.1" style="flex:1;min-width:280px">
+          <button class="secondary" id="btn-display-filter">Appliquer</button>
+          <button class="secondary mini" id="btn-df-clear" type="button">✕</button>
+          <span class="muted small" id="traffic-filter-hint">Ex: dns · tcp · http · ip.src == x</span>
+        </div>
+      </div>
+
+      <div class="stat-grid" style="margin-bottom:12px;">
+        <div class="stat-card"><div class="v" id="traffic-total">0</div><div class="l">Paquets (filtrés)</div></div>
+        <div class="stat-card"><div class="v" id="traffic-buffer">0</div><div class="l">Buffer total</div></div>
+        <div class="stat-card"><div class="v" id="traffic-bytes">0</div><div class="l">Ko capturés</div></div>
+        <div class="stat-card"><div class="v" id="traffic-selected">—</div><div class="l">Paquet sélectionné</div></div>
+      </div>
+      <div class="panel" id="proto-stats-panel" style="margin-bottom:12px;padding:10px 14px;">
+        <div class="ws-toolbar" style="border:none;padding:0 0 8px;background:transparent;">
+          <span class="tp-title" style="margin:0;">Protocoles</span>
+          <button class="mini secondary" type="button" id="btn-refresh-proto">Rafraîchir</button>
+        </div>
+        <div id="proto-stats-bars" class="proto-stats-bars muted small">—</div>
+      </div>
+
+      <!-- Wireshark 3-pane -->
+      <div class="ws-layout">
+        <div class="ws-packet-list panel">
+          <div class="ws-toolbar">
+            <span class="tp-title" style="margin:0;">PACKET LIST</span>
+            <span class="muted small" id="ws-list-meta">0 paquets</span>
+          </div>
+          <div class="ws-table-wrap">
+            <table class="ws-table" id="ws-table">
+              <thead>
+                <tr>
+                  <th class="col-no">No.</th>
+                  <th class="col-time">Time</th>
+                  <th class="col-src">Source</th>
+                  <th class="col-dst">Destination</th>
+                  <th class="col-proto">Protocol</th>
+                  <th class="col-len">Length</th>
+                  <th class="col-info">Info</th>
+                </tr>
+              </thead>
+              <tbody id="ws-packet-body">
+                <tr><td colspan="7" class="muted">Capture ou importe un PCAP…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="ws-bottom">
+          <div class="ws-detail panel">
+            <div class="ws-toolbar" style="padding:0 0 8px;border:none;background:transparent;">
+              <div class="tp-title" style="margin:0;">PACKET DETAILS</div>
+              <button class="mini" type="button" id="btn-follow-stream" disabled>Follow stream</button>
+            </div>
+            <div id="ws-layers" class="ws-layers muted small">Sélectionne un paquet dans la liste.</div>
+          </div>
+          <div class="ws-hex panel">
+            <div class="tp-title">PACKET BYTES</div>
+            <pre id="ws-hex" class="ws-hexdump">—</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Follow stream modal -->
+      <div id="stream-modal" class="stream-modal hidden">
+        <div class="stream-card">
+          <div class="ws-toolbar">
+            <strong id="stream-title">TCP Stream</strong>
+            <div class="controls-row" style="gap:6px;margin:0;">
+              <button class="mini secondary" type="button" id="btn-stream-export-txt">↓ TXT</button>
+              <button class="mini secondary" type="button" id="btn-stream-export-json">↓ JSON</button>
+              <button class="mini secondary" type="button" id="btn-stream-close">Fermer</button>
+            </div>
+          </div>
+          <div class="muted small" id="stream-meta" style="padding:0 12px 8px;"></div>
+          <pre id="stream-body" class="stream-body">—</pre>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:14px;">
+        <h2>Top flux</h2>
+        <table>
+          <thead><tr><th>Source</th><th>Destination</th><th>Proto</th><th>Port</th><th>Paquets</th><th>Volume</th></tr></thead>
+          <tbody id="traffic-flows"></tbody>
+        </table>
+      </div>
+
+      <div class="panel" id="corr-panel" style="margin-top:14px;display:none;">
+        <h2>Corrélation Sahel ↔ paquets</h2>
+        <p class="muted small" id="corr-summary">—</p>
+        <div id="corr-results" class="muted small">—</div>
+      </div>
+    </div>
+
+    <!-- TOOLS -->
+    <div class="view" id="view-tools">
+      <div class="view-header">
+        <div>
+          <h1>Outils réseau</h1>
+          <p>Ping · Trace · Banner · DNS/Dig · TLS · HTTP · Ports · WHOIS · Subnet · MAC · SSH · MTU · Neighbors · Routes.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Cible</h2>
+        <div class="controls-row">
+          <input type="text" id="tool-target" placeholder="IP, hostname, CIDR ou MAC" style="width:260px" autocomplete="off">
+          <input type="text" id="tool-port" placeholder="port" value="80" style="width:90px">
+          <input type="text" id="tool-extra" placeholder="ports (scan) ou path HTTP" style="width:200px" title="Ports ex: 22,80,443 ou path /admin">
+        </div>
+      </div>
+
+      <div class="action-bar">
+        <div class="action-group primary">
+          <span class="action-label">Base</span>
+          <button id="btn-ping" type="button">Ping</button>
+          <button class="secondary" id="btn-traceroute" type="button">Traceroute</button>
+          <button class="secondary" id="btn-banner" type="button">Banner</button>
+          <button class="secondary" id="btn-port-check" type="button">Port check</button>
+          <button class="secondary" id="btn-port-scan" type="button">Port scan</button>
+        </div>
+        <div class="action-group">
+          <span class="action-label">DNS / Web</span>
+          <button class="secondary" id="btn-dns" type="button">DNS</button>
+          <button class="secondary" id="btn-dig" type="button">Dig full</button>
+          <button class="secondary" id="btn-tls" type="button">TLS</button>
+          <button class="secondary" id="btn-http" type="button">HTTP</button>
+          <button class="secondary" id="btn-whois" type="button">WHOIS</button>
+        </div>
+        <div class="action-group">
+          <span class="action-label">Local</span>
+          <button class="secondary" id="btn-neighbors" type="button">Neighbors</button>
+          <button class="secondary" id="btn-routes" type="button">Routes</button>
+          <button class="secondary" id="btn-listening" type="button">Listeners</button>
+          <button class="secondary" id="btn-subnet" type="button">Subnet calc</button>
+          <button class="secondary" id="btn-mac" type="button">MAC OUI</button>
+        </div>
+        <div class="action-group">
+          <span class="action-label">Probes</span>
+          <button class="secondary" id="btn-ssh-keyscan" type="button">SSH keys</button>
+          <button class="secondary" id="btn-mtu" type="button">MTU path</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="view-header" style="margin-bottom:10px;padding:0;">
+          <div>
+            <h2 style="margin:0;">Résultat</h2>
+            <p class="muted small" id="tool-meta" style="margin:4px 0 0;">Sélectionne une action…</p>
+          </div>
+          <button class="secondary mini" id="btn-tool-clear" type="button">Effacer</button>
+        </div>
+        <pre id="tool-output" class="code-out">Sélectionne une action…</pre>
+      </div>
+    </div>
+
+    <!-- INTEL -->
+    <div class="view" id="view-intel">
+      <div class="view-header">
+        <div>
+          <h1>Intelligence réseau</h1>
+          <p>SNMP · NetBIOS · LLDP/CDP · Wi‑Fi · MITRE ATT&amp;CK · IsolationForest · Suricata · SAHEL live.</p>
+        </div>
+        <div class="controls-row">
+          <button id="btn-intel-refresh">Actualiser pack</button>
+          <button class="secondary" id="btn-score-hosts">Score ML</button>
+          <button class="secondary" id="btn-mitre-map">MITRE</button>
+          <button class="secondary" id="btn-default-creds-2">Default-cred</button>
+          <button class="secondary" id="btn-export-stix-2">STIX</button>
+          <button class="secondary" id="btn-export-gexf">GEXF</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Range cartography (L0p4Map)</h2>
+        <div class="controls-row">
+          <input type="text" id="range-target" placeholder="192.168.1.0/24 ou 10.0.0.1-50" style="width:240px">
+          <button id="btn-range-map-2">Lancer range map</button>
+        </div>
+        <pre id="range-out" class="code-out" style="margin-top:10px;max-height:160px;overflow:auto;">CIDR / plage → ping + parent traceroute</pre>
+      </div>
+
+      <div class="stat-grid" style="margin-bottom:18px;">
+        <div class="stat-card"><div class="v" id="intel-hosts">0</div><div class="l">Hôtes</div></div>
+        <div class="stat-card"><div class="v" id="intel-anom">0</div><div class="l">Anomalies ML</div></div>
+        <div class="stat-card"><div class="v" id="intel-mitre">0</div><div class="l">Techniques ATT&amp;CK</div></div>
+        <div class="stat-card"><div class="v" id="intel-suri">—</div><div class="l">Suricata</div></div>
+        <div class="stat-card"><div class="v" id="intel-method">—</div><div class="l">Méthode score</div></div>
+      </div>
+
+      <div class="panel">
+        <h2>Discovery avancée</h2>
+        <div class="controls-row">
+          <button id="btn-snmp-batch">SNMP batch</button>
+          <button class="secondary" id="btn-netbios-batch">NetBIOS</button>
+          <button class="secondary" id="btn-lldp">LLDP/CDP 8s</button>
+          <button class="secondary" id="btn-wifi-scan">Scan Wi‑Fi</button>
+          <input type="text" id="snmp-target" placeholder="IP SNMP unique" style="width:140px">
+          <button class="secondary" id="btn-snmp-one">SNMP GET</button>
+        </div>
+        <pre id="intel-discovery-out" class="code-out" style="margin-top:12px;max-height:220px;overflow:auto;">Lance une découverte…</pre>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h2>Anomalies hôtes (IsolationForest)</h2>
+          <div id="intel-anomalies" class="muted small">—</div>
+        </div>
+        <div class="panel">
+          <h2>MITRE ATT&amp;CK</h2>
+          <div id="intel-mitre-list" class="muted small">—</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Suricata (eve.json)</h2>
+        <div id="intel-suricata" class="muted small">Recherche de /var/log/suricata/eve.json…</div>
+      </div>
+
+      <div class="panel">
+        <h2>Bridge SAHEL live</h2>
+        <div class="controls-row">
+          <input type="url" id="bridge-sahel-url" placeholder="http://127.0.0.1:8099" style="width:240px">
+          <select id="bridge-interval">
+            <option value="60">60s</option>
+            <option value="120" selected>120s</option>
+            <option value="300">300s</option>
+          </select>
+          <button id="btn-bridge-start">Démarrer bridge</button>
+          <button class="danger secondary" id="btn-bridge-stop">Stop</button>
+          <span class="muted small" id="bridge-status">OFF</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY / SCANS -->
+    <div class="view" id="view-history">
+      <div class="view-header">
+        <div>
+          <h1>Historique &amp; scans</h1>
+          <p>Recharge un scan passé · actions session · overrides manuels.</p>
+        </div>
+        <div class="controls-row">
+          <select id="hist-kind-filter" style="min-width:140px">
+            <option value="">Tous types</option>
+            <option value="arp">ARP</option>
+            <option value="nmap">Nmap</option>
+            <option value="vuln">Vuln</option>
+            <option value="attack">Attack</option>
+            <option value="network">Network</option>
+          </select>
+          <button class="secondary" id="btn-refresh-scans">Rafraîchir</button>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h2>Scans enregistrés</h2>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead><tr><th>ID</th><th>Type</th><th>Date</th><th>Taille</th><th></th></tr></thead>
+              <tbody id="scans-tbody">
+                <tr><td colspan="5" class="muted">Chargement…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Overrides rôles</h2>
+          <div id="overrides-list" class="muted small">Aucun override.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Journal session</h2>
+        <div id="history-list-full" class="empty-state" style="padding:24px;"><div class="icon">◌</div>Aucune action.</div>
+      </div>
+
+      <div class="panel">
+        <h2>Intégration SAHEL</h2>
+        <div class="controls-row">
+          <input type="url" id="sahel-url" placeholder="http://127.0.0.1:8099" style="width:280px">
+          <button class="secondary" id="btn-save-sahel-url">Sauver URL</button>
+          <button id="btn-push-sahel-2">↑ Push vers SAHEL</button>
+        </div>
+        <p class="muted small" style="margin-top:8px;">Pousse l’inventaire ARP/nmap vers Sahel Shield (ou crée un JSON local si Sahel est offline).</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- HOST DRAWER -->
+<aside id="host-drawer" class="host-drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <h2 id="drawer-title">Hôte</h2>
+    <button class="mini secondary" id="btn-drawer-close" type="button">✕</button>
+  </div>
+  <div id="drawer-body" class="drawer-body"></div>
+</aside>
+
+<aside id="notifications-drawer" class="host-drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <h2>Notifications</h2>
+    <button class="mini secondary" id="notif-close" type="button">✕</button>
+  </div>
+  <div id="notifications-list" class="drawer-body" style="padding:12px; max-height:60vh; overflow:auto;"></div>
+</aside>
+
+<div id="drawer-backdrop" class="drawer-backdrop hidden"></div>
+
+<!-- activity-log removed (no bottom dialogue) -->
+<div id="toast-root"></div>
+
+<script src="{{ url_for('static', filename='js/result-explain.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/wind.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/toast.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/live.js') }}?v={{ version }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}?v={{ version }}"></script>
+</body>
+</html>

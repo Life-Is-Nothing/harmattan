@@ -1,0 +1,230 @@
+/* HARMATTAN Loading Skeletons — Neon Pulse */
+
+/* Base skeleton */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--cyber-bg3, #141425);
+  border-radius: 6px;
+  min-height: 16px;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 240, 255, 0.06) 40%,
+    rgba(0, 240, 255, 0.12) 50%,
+    rgba(0, 240, 255, 0.06) 60%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
+/* Text skeleton */
+.skeleton-text {
+  height: 14px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+}
+
+.skeleton-text.short { width: 40%; }
+.skeleton-text.medium { width: 65%; }
+.skeleton-text.long { width: 90%; }
+.skeleton-text.full { width: 100%; }
+
+/* Card skeleton */
+.skeleton-card {
+  background: var(--cyber-surface, #1a1a2e);
+  border: 1px solid var(--cyber-border, #1e1e3a);
+  border-radius: 8px;
+  padding: 20px;
+  min-height: 120px;
+}
+
+.skeleton-card .skeleton-title {
+  height: 18px;
+  width: 50%;
+  margin-bottom: 16px;
+  border-radius: 4px;
+}
+
+.skeleton-card .skeleton-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Table skeleton */
+.skeleton-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.skeleton-table th,
+.skeleton-table td {
+  padding: 10px 14px;
+  text-align: left;
+}
+
+.skeleton-table th {
+  background: var(--cyber-bg3, #141425);
+  height: 32px;
+  border-radius: 4px;
+}
+
+.skeleton-table td {
+  border-bottom: 1px solid var(--cyber-border, #1e1e3a);
+}
+
+/* Stat card skeleton */
+.skeleton-stat {
+  background: var(--cyber-bg3, #141425);
+  border: 1px solid var(--cyber-border, #1e1e3a);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  min-height: 80px;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-stat::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0,240,255,0.3), transparent);
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
+.skeleton-stat .skeleton-value {
+  height: 28px;
+  width: 60px;
+  margin: 0 auto 8px;
+  border-radius: 4px;
+}
+
+.skeleton-stat .skeleton-label {
+  height: 10px;
+  width: 80px;
+  margin: 0 auto;
+  border-radius: 4px;
+}
+
+/* Chart skeleton */
+.skeleton-chart {
+  min-height: 200px;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-chart .skeleton-bar {
+  position: absolute;
+  bottom: 0;
+  width: 20px;
+  border-radius: 4px 4px 0 0;
+  background: rgba(0, 240, 255, 0.08);
+}
+
+/* Row list skeleton */
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(30, 30, 58, 0.3);
+}
+
+.skeleton-row .skeleton-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeleton-row .skeleton-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Topology skeleton */
+.skeleton-topo {
+  min-height: 400px;
+  background: var(--cyber-bg3, #141425);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-topo .skeleton-node {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 240, 255, 0.1);
+  background: rgba(0, 240, 255, 0.03);
+}
+
+/* Animations */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes skeleton-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Loaded state — fade out skeleton */
+.skeleton.loaded {
+  animation: skeleton-fade-out 0.3s ease forwards;
+  pointer-events: none;
+}
+
+/* Pulse variant */
+.skeleton-pulse::after {
+  animation: skeleton-pulse-anim 1.5s ease-in-out infinite;
+  background: none;
+  border: 2px solid rgba(0, 240, 255, 0.15);
+}
+
+@keyframes skeleton-pulse-anim {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.02); opacity: 0.2; }
+}
+
+/* Spinner */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(0, 240, 255, 0.3);
+  border-top-color: var(--cyber-cyan, #00f0ff);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.spinner-lg {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

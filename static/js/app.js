@@ -40,6 +40,10 @@ function toast(msg, type = "ok") {
 
 function log(msg) {
   const box = document.getElementById("activity-log");
+  if (!box || box.style.display === "none" || box.getAttribute("aria-hidden") === "true") {
+    if (typeof console !== "undefined" && console.debug) console.debug("[HARMATTAN]", msg);
+    return;
+  }
   const line = document.createElement("div");
   line.className = "log-line";
   const time = new Date().toLocaleTimeString();
@@ -54,14 +58,29 @@ async function api(path, opts = {}) {
     ...(opts.headers || {}),
   };
   if (TOKEN) headers["X-Harmattan-Token"] = TOKEN;
-  const res = await fetch(path, { ...opts, headers });
+  const res = await fetch(path, {
+    credentials: "same-origin",
+    ...opts,
+    headers,
+  });
   const ct = res.headers.get("content-type") || "";
   if (ct.includes("application/json")) {
     const data = await res.json();
     if (res.status === 401) {
-      toast("Token API invalide", "err");
+      // Suite SSO: redirect to Identity login
+      if (window.HarmattanSSO && window.HarmattanSSO.loginUrl) {
+        window.location.href = window.HarmattanSSO.loginUrl();
+        return data;
+      }
+      toast("Session requise — reconnectez-vous (Identity)", "err");
+    }
+    if (res.status === 404 && data && data.error === "not_found") {
+      console.warn("API not found:", path);
     }
     return data;
+  }
+  if (res.status === 401 && window.HarmattanSSO) {
+    window.location.href = window.HarmattanSSO.loginUrl();
   }
   return res;
 }
@@ -97,6 +116,9 @@ function showView(name) {
     refreshScans();
     refreshOverrides();
     refreshHistoryFull();
+    refreshKnownHosts();
+    refreshIgnoredHosts();
+    refreshFindingsCleanup();
     loadSahelSettings();
   }
   if (name === "intel") {
@@ -336,9 +358,10 @@ function applyHomeResult(result) {
 }
 
 function tokenUrl(path) {
-  if (!TOKEN) return path;
-  const sep = path.includes("?") ? "&" : "?";
-  return `${path}${sep}token=${encodeURIComponent(TOKEN)}`;
+  // Cookie httponly + same-origin — never leak token in URL/query
+  return (window.HarmattanCore && window.HarmattanCore.safeUrl)
+    ? window.HarmattanCore.safeUrl(path)
+    : path;
 }
 
 document.getElementById("btn-export-report").addEventListener("click", () => {
@@ -660,24 +683,36 @@ function renderArpResults(result) {
   const rows = hosts
     .map(
       (h) => `
-    <tr class="clickable-row" data-ip="${esc(h.ip)}">
+    <tr class="clickable-row" data-ip="${esc(h.ip)}" title="Clic = fiche hôte + explications">
       <td><b>${esc(h.ip)}</b></td>
       <td class="mono">${esc(h.mac || "—")}</td>
       <td>${esc(h.vendor || "—")}</td>
       <td>${esc(h.hostname || "—")}</td>
-      <td>${roleBadge(h.role)}</td>
+      <td data-hmx="role" data-hmx-json="${esc(JSON.stringify({ role: h.role || "unknown" }))}">${roleBadge(h.role)}</td>
       <td>${esc(h.os_hint || "—")}</td>
-      <td>${esc((h.open_ports || []).join(", ") || "—")}</td>
+      <td>${(h.open_ports || [])
+        .slice(0, 8)
+        .map((p) => {
+          const port = typeof p === "object" ? p.port : p;
+          return `<span class="badge" style="margin:1px;cursor:pointer" data-hmx="port" data-hmx-json="${esc(
+            JSON.stringify({ port })
+          )}">${esc(port)}</span>`;
+        })
+        .join(" ") || "—"}</td>
       <td>
         <button class="mini" data-act="ping" data-ip="${esc(h.ip)}">ping</button>
         <button class="mini secondary" data-act="tr" data-ip="${esc(h.ip)}">tr</button>
         <button class="mini secondary" data-act="detail" data-ip="${esc(h.ip)}">détail</button>
+        <button class="mini secondary" data-act="explain" data-ip="${esc(h.ip)}">ⓘ</button>
+        <button class="mini secondary" data-act="remove" data-ip="${esc(h.ip)}" data-mac="${esc(h.mac || "")}" title="Retirer de la session">✕</button>
+        <button class="mini secondary" data-act="ignore" data-ip="${esc(h.ip)}" data-mac="${esc(h.mac || "")}" title="Ignorer (ne plus réapparaître)">⊘</button>
       </td>
     </tr>`
     )
     .join("");
 
   el.innerHTML = `
+    <p class="hmx-hint">Clique une ligne pour le dossier hôte · ports / ⓘ pour l’explication</p>
     <table>
       <thead><tr>
         <th>IP</th><th>MAC</th><th>Vendor</th><th>Hostname</th>
@@ -687,17 +722,31 @@ function renderArpResults(result) {
     </table>`;
 
   el.querySelectorAll("[data-act]").forEach((btn) => {
-    btn.addEventListener("click", (ev) => {
+    btn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
       const ip = btn.dataset.ip;
+      const mac = btn.dataset.mac || "";
       const act = btn.dataset.act;
       if (act === "detail") openHostDrawer(ip);
-      else quickTool(ip, act === "ping" ? "ping" : "tr");
+      else if (act === "explain") {
+        const h = (result.hosts || []).find((x) => x.ip === ip) || { ip };
+        if (window.HMExplain) window.HMExplain.open(`Hôte ${ip}`, window.HMExplain.hostHtml(h));
+        else openHostDrawer(ip);
+      } else if (act === "remove") {
+        await removeHostFromSession(ip, mac, false);
+      } else if (act === "ignore") {
+        if (!confirm(`Ignorer ${ip || mac} ? Il ne réapparaîtra plus dans les scans.`)) return;
+        await removeHostFromSession(ip, mac, true);
+      } else quickTool(ip, act === "ping" ? "ping" : "tr");
     });
   });
   el.querySelectorAll("tr.clickable-row").forEach((tr) => {
-    tr.addEventListener("click", () => openHostDrawer(tr.dataset.ip));
+    tr.addEventListener("click", (ev) => {
+      if (ev.target.closest("[data-hmx],[data-act]")) return;
+      openHostDrawer(tr.dataset.ip);
+    });
   });
+  window.HMExplain?.bind(el);
 }
 
 document.getElementById("arp-filter")?.addEventListener("input", (e) => {
@@ -769,28 +818,93 @@ async function openHostDrawer(ip) {
       .join("");
   }
 
+  const role = a.role || atk.role || "unknown";
+  const roleExpl = window.HMExplain ? window.HMExplain.roleInfo(role) : "";
+  // enrich ports with clickable explanations
+  if (n.ports?.length && window.HMExplain) {
+    portsHtml = `<p class="hmx-hint" style="margin:0 0 8px">Clique un port pour l’explication risque / remédiation</p>
+      <table><thead><tr><th>Port</th><th>Svc</th><th>Version</th><th></th></tr></thead><tbody>${n.ports
+        .filter((p) => p.state === "open")
+        .map((p) => {
+          const info = window.HMExplain.portInfo(p.port);
+          return `<tr class="hmx-clickable" data-hmx="port" data-hmx-json="${esc(
+            JSON.stringify({
+              port: p.port,
+              service: p.service || info.name,
+              product: p.product || "",
+              version: p.version || "",
+            })
+          )}">
+            <td><b>${esc(p.port)}/${esc(p.protocol)}</b></td>
+            <td>${esc(p.service || info.name)}</td>
+            <td>${esc((p.product || "") + " " + (p.version || ""))}</td>
+            <td><span class="badge ${esc(info.risk)}">${esc(info.risk)}</span></td>
+          </tr>`;
+        })
+        .join("")}</tbody></table>`;
+  } else if (a.open_ports?.length && window.HMExplain) {
+    portsHtml = a.open_ports
+      .map((p) => {
+        const port = typeof p === "object" ? p.port : p;
+        const info = window.HMExplain.portInfo(port);
+        return `<span class="badge ${esc(info.risk)}" style="margin:2px;cursor:pointer" data-hmx="port" data-hmx-json="${esc(
+          JSON.stringify({ port, service: info.name })
+        )}">${esc(port)} · ${esc(info.name)}</span>`;
+      })
+      .join(" ");
+  }
+
+  if (vul.services?.length && window.HMExplain) {
+    cveHtml = vul.services
+      .map(
+        (s) =>
+          `<div><b>${esc(s.product)} ${esc(s.version)}</b><ul>${(s.cves || [])
+            .map(
+              (c) =>
+                `<li data-hmx="cve" data-hmx-json="${esc(JSON.stringify(c))}" class="hmx-clickable"><a href="${esc(
+                  c.url || "#"
+                )}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(c.id)}</a>
+                <span class="badge ${esc(c.severity)}">${esc(c.severity)}</span> ${c.score ?? ""} — ${esc(
+                  (c.description || "").slice(0, 80)
+                )}…</li>`
+            )
+            .join("")}</ul></div>`
+      )
+      .join("");
+  }
+
   document.getElementById("drawer-body").innerHTML = `
+    <p class="hmx-hint">Panneau hôte · clique ports / CVE pour plus d’infos</p>
     <h3>Identité</h3>
     <div class="kv"><span>IP</span><b>${esc(ip)}</b></div>
     <div class="kv"><span>MAC</span><b>${esc(a.mac || n.mac || "—")}</b></div>
     <div class="kv"><span>Vendor</span><b>${esc(a.vendor || "—")}</b></div>
     <div class="kv"><span>Hostname</span><b>${esc(a.hostname || (n.hostnames || [])[0] || "—")}</b></div>
-    <div class="kv"><span>Rôle</span><b>${roleBadge(a.role || atk.role)}</b></div>
+    <div class="kv"><span>Rôle</span><b data-hmx="role" data-hmx-json="${esc(
+      JSON.stringify({ role })
+    )}" class="hmx-clickable">${roleBadge(role)}</b></div>
+    ${roleExpl ? `<p style="font-size:12px;color:var(--text-mid);margin:6px 0 10px">${esc(roleExpl)}</p>` : ""}
     <div class="kv"><span>OS</span><b>${esc(a.os_hint || (n.os_matches && n.os_matches[0]?.name) || "—")}</b></div>
     <div class="kv"><span>TTL</span><b>${esc(a.ttl ?? "—")}</b></div>
     ${a.snmp_desc ? `<div class="kv"><span>SNMP</span><b>${esc(a.snmp_desc)}</b></div>` : ""}
     <h3>Ports</h3>${portsHtml}
     <h3>Surface d'attaque</h3>
     <div class="kv"><span>Expositions</span><b>${esc(atk.exposure_count ?? 0)}</b></div>
-    <div class="kv"><span>Max risk</span><b>${esc(atk.max_risk || "none")}</b></div>
-    <h3>CVE</h3>${cveHtml}
+    <div class="kv" data-hmx="severity" data-hmx-json="${esc(
+      JSON.stringify({ severity: atk.max_risk || "info" })
+    )}" class="hmx-clickable"><span>Max risk</span><b>${esc(atk.max_risk || "none")}</b></div>
+    <h3>CVE <span class="hmx-hint" style="display:inline;margin:0">(clic = explication)</span></h3>${cveHtml}
     <h3>Actions</h3>
     <div class="controls-row">
       <button class="mini" id="dr-ping">Ping</button>
       <button class="mini secondary" id="dr-tr">Traceroute</button>
       <button class="mini secondary" id="dr-nmap">Nmap quick</button>
+      <button class="mini secondary" id="dr-explain">Tout expliquer</button>
+      <button class="mini secondary" id="dr-remove" title="Retirer de la session + hôtes connus">Supprimer</button>
+      <button class="mini secondary" id="dr-ignore" title="Blacklist — ne plus réapparaître">Ignorer</button>
     </div>
   `;
+  const mac = a.mac || n.mac || "";
   document.getElementById("dr-ping")?.addEventListener("click", () => quickTool(ip, "ping"));
   document.getElementById("dr-tr")?.addEventListener("click", () => quickTool(ip, "tr"));
   document.getElementById("dr-nmap")?.addEventListener("click", () => {
@@ -798,6 +912,33 @@ async function openHostDrawer(ip) {
     showView("scan");
     document.getElementById("btn-nmap-scan").click();
   });
+  document.getElementById("dr-explain")?.addEventListener("click", () => {
+    if (!window.HMExplain) return;
+    window.HMExplain.open(
+      `Hôte ${ip}`,
+      window.HMExplain.hostHtml({
+        ip,
+        mac: a.mac || n.mac,
+        vendor: a.vendor,
+        hostname: a.hostname,
+        role,
+        os_hint: a.os_hint,
+        ports: (n.ports || []).filter((p) => p.state === "open"),
+        open_ports: a.open_ports,
+      })
+    );
+  });
+  document.getElementById("dr-remove")?.addEventListener("click", async () => {
+    if (!confirm(`Supprimer ${ip} de la session et des hôtes connus ?`)) return;
+    await removeHostFromSession(ip, mac, false);
+    closeDrawer();
+  });
+  document.getElementById("dr-ignore")?.addEventListener("click", async () => {
+    if (!confirm(`Ignorer ${ip} définitivement (blacklist) ?`)) return;
+    await removeHostFromSession(ip, mac, true);
+    closeDrawer();
+  });
+  window.HMExplain?.bind(document.getElementById("drawer-body"));
 }
 
 function closeDrawer() {
@@ -888,22 +1029,31 @@ function renderNmapResults(result) {
                 `<div class="script-out"><b>${esc(s.id)}</b>: ${esc((s.output || "").slice(0, 200))}</div>`
             )
             .join("");
+          const risk = window.HMExplain?.portInfo(p.port)?.risk || "info";
           return `
-      <tr>
+      <tr class="hmx-clickable" title="Clic = explication du port" data-hmx="port" data-hmx-json="${esc(
+        JSON.stringify({
+          port: p.port,
+          service: p.service,
+          product: p.product,
+          version: p.version,
+        })
+      )}">
         <td>${esc(p.port)}/${esc(p.protocol)}</td>
         <td><span class="badge open">${esc(p.state)}</span></td>
         <td>${esc(p.service || "")}</td>
         <td>${esc(p.product || "")} ${esc(p.version || "")}</td>
-        <td>${scripts || "—"}</td>
+        <td><span class="badge ${esc(risk)}">${esc(risk)}</span> ${scripts || ""}</td>
       </tr>`;
         })
         .join("");
 
       return `
       <div class="panel" style="margin-bottom:14px;">
+        <p class="hmx-hint">Clique un port pour l’explication · IP pour le dossier hôte</p>
         <h2><span class="clickable-row" data-ip="${esc(h.ip)}" style="cursor:pointer">${esc(h.ip)}</span> — ${esc(os)}</h2>
         <table>
-          <thead><tr><th>Port</th><th>État</th><th>Service</th><th>Version</th><th>Scripts</th></tr></thead>
+          <thead><tr><th>Port</th><th>État</th><th>Service</th><th>Version</th><th>Risque / Scripts</th></tr></thead>
           <tbody>${portRows || '<tr><td colspan="5">Aucun port ouvert</td></tr>'}</tbody>
         </table>
       </div>`;
@@ -911,8 +1061,12 @@ function renderNmapResults(result) {
     .join("");
 
   el.querySelectorAll("[data-ip]").forEach((node) => {
-    node.addEventListener("click", () => openHostDrawer(node.dataset.ip));
+    node.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      openHostDrawer(node.dataset.ip);
+    });
   });
+  window.HMExplain?.bind(el);
 }
 
 // ---------- Attack surface ----------
@@ -953,21 +1107,54 @@ function renderAttack(report) {
     return JSON.stringify(h).toLowerCase().includes(q);
   });
 
+  const l0p4Btns = (ip, mac) => `
+    <div class="as-host-actions controls-row" style="margin:8px 0 10px;gap:4px;">
+      <button type="button" class="mini secondary as-pick" data-ip="${esc(ip)}" data-mac="${esc(mac || "")}">◎ Cible</button>
+      <button type="button" class="mini secondary as-act" data-act="ping" data-ip="${esc(ip)}">Ping</button>
+      <button type="button" class="mini secondary as-act" data-act="traceroute" data-ip="${esc(ip)}">Trace</button>
+      <button type="button" class="mini secondary as-act" data-act="banner" data-ip="${esc(ip)}">Banner</button>
+      <button type="button" class="mini secondary as-act" data-act="port-scan" data-ip="${esc(ip)}">Ports</button>
+      <button type="button" class="mini secondary as-act" data-act="nmap-light" data-ip="${esc(ip)}">Nmap</button>
+      <button type="button" class="mini secondary as-act" data-act="nmap-vuln" data-ip="${esc(ip)}">Nmap+CVE</button>
+      <button type="button" class="mini secondary as-act" data-act="http" data-ip="${esc(ip)}">HTTP</button>
+      <button type="button" class="mini secondary as-act" data-act="tls" data-ip="${esc(ip)}">TLS</button>
+      <button type="button" class="mini secondary as-act" data-act="ssh-keyscan" data-ip="${esc(ip)}">SSH</button>
+      <button type="button" class="mini secondary as-act" data-act="dns" data-ip="${esc(ip)}">DNS</button>
+      <button type="button" class="mini secondary as-act" data-act="whois" data-ip="${esc(ip)}">WHOIS</button>
+      <button type="button" class="mini secondary as-act" data-act="wol" data-ip="${esc(ip)}" data-mac="${esc(mac || "")}">WOL</button>
+      <button type="button" class="mini secondary as-act" data-act="ai-host" data-ip="${esc(ip)}">AI</button>
+      <button type="button" class="mini secondary as-drawer" data-ip="${esc(ip)}">Détail</button>
+    </div>`;
+
   el.innerHTML = hosts
     .map((h) => {
+      const mac = h.mac || "";
       if (!h.exposures?.length) {
-        return `<div class="panel"><h2>${esc(h.ip)} ${roleBadge(h.role)} <span class="badge open">clean</span></h2>
-        <p style="color:var(--text-mid);font-size:12px;">Aucun port sensible détecté.</p></div>`;
+        return `<div class="panel">
+        <h2><span style="cursor:pointer" data-ip="${esc(h.ip)}">${esc(h.ip)}</span>
+          ${h.hostname ? "— " + esc(h.hostname) : ""} ${roleBadge(h.role)}
+          <span class="badge open">clean</span></h2>
+        ${l0p4Btns(h.ip, mac)}
+        <p style="color:var(--text-mid);font-size:12px;">Aucun port sensible détecté — commandes L0p4 disponibles.</p></div>`;
       }
       const rows = h.exposures
         .map(
           (e) => `
-      <tr>
-        <td>${esc(e.port)}/${esc(e.protocol)}</td>
+      <tr class="hmx-clickable" data-hmx="port" data-hmx-json="${esc(
+        JSON.stringify({
+          port: e.port,
+          service: e.service,
+          product: e.product,
+          version: e.version,
+        })
+      )}" title="Clic = pourquoi ce risque">
+        <td>${esc(e.port)}/${esc(e.protocol || "tcp")}</td>
         <td>${esc(e.service || "—")}</td>
         <td>${esc(e.product || "")} ${esc(e.version || "")}</td>
-        <td><span class="badge ${esc(e.risk)}">${esc(e.risk)}</span></td>
-        <td>${esc(e.source)}</td>
+        <td data-hmx="severity" data-hmx-json="${esc(JSON.stringify({ severity: e.risk }))}"><span class="badge ${esc(
+          e.risk
+        )}">${esc(e.risk)}</span></td>
+        <td>${esc(e.source || "—")}</td>
         <td style="font-size:11px;color:var(--text-low)">${esc(e.recommendation || "—")}</td>
       </tr>`
         )
@@ -976,7 +1163,9 @@ function renderAttack(report) {
       <div class="panel" style="margin-bottom:14px;">
         <h2><span style="cursor:pointer" data-ip="${esc(h.ip)}">${esc(h.ip)}</span>
           ${h.hostname ? "— " + esc(h.hostname) : ""} ${roleBadge(h.role)}
-          <span class="badge ${esc(h.max_risk)}">${esc(h.exposure_count)} expo</span></h2>
+          <span class="badge ${esc(h.max_risk)}">${esc(h.exposure_count || h.exposures.length)} expo</span></h2>
+        ${l0p4Btns(h.ip, mac)}
+        <p class="hmx-hint muted small">Clique une exposition pour l’explication · boutons = commandes L0p4Map</p>
         <table>
           <thead><tr><th>Port</th><th>Service</th><th>Produit</th><th>Risque</th><th>Source</th><th>Reco</th></tr></thead>
           <tbody>${rows}</tbody>
@@ -985,10 +1174,83 @@ function renderAttack(report) {
     })
     .join("");
 
-  el.querySelectorAll("[data-ip]").forEach((n) =>
-    n.addEventListener("click", () => openHostDrawer(n.dataset.ip))
+  el.querySelectorAll("[data-ip]").forEach((n) => {
+    if (n.classList.contains("as-act") || n.classList.contains("as-pick") || n.classList.contains("as-drawer")) return;
+    n.addEventListener("click", () => {
+      const ip = n.dataset.ip;
+      const tgt = document.getElementById("as-target");
+      if (tgt) tgt.value = ip;
+      openHostDrawer(ip);
+    });
+  });
+  el.querySelectorAll(".as-pick").forEach((b) =>
+    b.addEventListener("click", () => {
+      document.getElementById("as-target").value = b.dataset.ip || "";
+      if (b.dataset.mac) document.getElementById("as-mac").value = b.dataset.mac;
+      toast(`Cible → ${b.dataset.ip}`, "ok");
+    })
   );
+  el.querySelectorAll(".as-drawer").forEach((b) =>
+    b.addEventListener("click", () => openHostDrawer(b.dataset.ip))
+  );
+  el.querySelectorAll(".as-act").forEach((b) =>
+    b.addEventListener("click", () => {
+      runAsAction(b.dataset.act, b.dataset.ip, b.dataset.mac);
+    })
+  );
+  window.HMExplain?.bind(el);
 }
+
+async function runAsAction(action, ip, mac) {
+  const target = ip || document.getElementById("as-target")?.value?.trim();
+  const port = document.getElementById("as-port")?.value?.trim() || "80";
+  const macV = mac || document.getElementById("as-mac")?.value?.trim() || "";
+  const out = document.getElementById("as-cmd-out");
+  if (!target && action !== "wol") {
+    toast("IP cible manquante", "warn");
+    return;
+  }
+  if (out) out.textContent = `${action} ${target || macV}…`;
+  if (action === "ai-host") {
+    const d = await api(`/api/ai-host/${encodeURIComponent(target)}`);
+    if (out) out.textContent = JSON.stringify(d, null, 2);
+    toast(d?.error ? d.error : `AI ${target}: ${d?.severity || "ok"}`, d?.error ? "err" : "ok");
+    return;
+  }
+  const body = { action, ip: target, target, port, mac: macV, async: true };
+  const r = await api("/api/host/quick", { method: "POST", body: JSON.stringify(body) });
+  if (r.job_id) {
+    toast(`${action} job…`, "ok");
+    await pollJob(r.job_id, (result) => {
+      if (out) out.textContent = JSON.stringify(result, null, 2);
+      toast(`${action} terminé`, "ok");
+      // refresh attack after nmap
+      if (String(action).startsWith("nmap")) refreshAttack();
+    });
+    return;
+  }
+  if (out) out.textContent = r.output || r.raw || r.banner || JSON.stringify(r, null, 2);
+  toast(r.ok === false || r.error ? r.error || "fail" : `${action} OK`, r.ok === false || r.error ? "err" : "ok");
+}
+
+// Global L0p4 command bar on Attack Surface
+document.getElementById("as-cmds-global")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-as-act]");
+  if (!btn) return;
+  runAsAction(btn.getAttribute("data-as-act"));
+});
+document.getElementById("btn-as-ai")?.addEventListener("click", () => {
+  runNetworkAiAnalyze();
+  try {
+    showView("dashboard");
+  } catch (_) {}
+});
+document.getElementById("btn-as-vuln")?.addEventListener("click", () => {
+  document.getElementById("btn-vuln-scan")?.click();
+  try {
+    showView("vuln");
+  } catch (_) {}
+});
 
 document.getElementById("attack-filter")?.addEventListener("input", (e) => {
   state.attackFilter = e.target.value;
@@ -1054,7 +1316,8 @@ function renderVulnResults(report) {
   }
   const sev = report.by_severity || {};
   el.innerHTML =
-    `<div class="stat-grid" style="margin-bottom:14px;">
+    `<p class="hmx-hint">Clique une CVE pour score, impact et bonnes pratiques</p>
+    <div class="stat-grid" style="margin-bottom:14px;">
       <div class="stat-card"><div class="v">${esc(report.total_findings)}</div><div class="l">Total CVE</div></div>
       <div class="stat-card"><div class="v">${esc(sev.critique || 0)}</div><div class="l">Critiques</div></div>
       <div class="stat-card"><div class="v">${esc(sev.haute || 0)}</div><div class="l">Hautes</div></div>
@@ -1076,8 +1339,12 @@ function renderVulnResults(report) {
             ${s.cves
               .map(
                 (c) => `
-              <tr>
-                <td><a href="${esc(c.url)}" target="_blank" rel="noopener" style="color:var(--cyan)">${esc(c.id)}</a></td>
+              <tr class="hmx-clickable" data-hmx="cve" data-hmx-json="${esc(
+                JSON.stringify(c)
+              )}" title="Clic = explication CVE">
+                <td><a href="${esc(c.url)}" target="_blank" rel="noopener" style="color:var(--cyan)" onclick="event.stopPropagation()">${esc(
+                  c.id
+                )}</a></td>
                 <td>${c.score ?? "—"}</td>
                 <td><span class="badge ${esc(c.severity)}">${esc(c.severity)}</span></td>
                 <td>${esc(c.description)}</td>
@@ -1095,6 +1362,7 @@ function renderVulnResults(report) {
   el.querySelectorAll("[data-ip]").forEach((n) =>
     n.addEventListener("click", () => openHostDrawer(n.dataset.ip))
   );
+  window.HMExplain?.bind(el);
 }
 
 // ---------- Traffic ----------
@@ -1509,48 +1777,171 @@ async function runTool(name, body) {
   return r;
 }
 
-document.getElementById("btn-ping").addEventListener("click", async () => {
-  const ip = document.getElementById("tool-target").value.trim();
+function toolTarget() {
+  return (document.getElementById("tool-target")?.value || "").trim();
+}
+function toolPort(def = "80") {
+  return (document.getElementById("tool-port")?.value || "").trim() || def;
+}
+function toolExtra() {
+  return (document.getElementById("tool-extra")?.value || "").trim();
+}
+function showTool(name, r, summary) {
+  const out = document.getElementById("tool-output");
+  const meta = document.getElementById("tool-meta");
+  if (meta) meta.textContent = summary || name;
+  if (!out) return;
+  if (typeof r === "string") out.textContent = r;
+  else if (r?.output) out.textContent = r.output;
+  else if (r?.raw) out.textContent = r.raw;
+  else if (r?.banner) out.textContent = r.banner;
+  else out.textContent = JSON.stringify(r, null, 2);
+}
+
+document.getElementById("btn-tool-clear")?.addEventListener("click", () => {
+  const out = document.getElementById("tool-output");
+  const meta = document.getElementById("tool-meta");
+  if (out) out.textContent = "Sélectionne une action…";
+  if (meta) meta.textContent = "Prêt";
+});
+
+document.getElementById("btn-ping")?.addEventListener("click", async () => {
+  const ip = toolTarget();
   if (!ip) return;
   const r = await runTool("ping", { ip });
-  document.getElementById("tool-output").textContent = r.output || r.error || JSON.stringify(r, null, 2);
+  showTool("ping", r.output || r.error || r, `ping ${ip} → ${r.ok ? "OK" : "FAIL"}`);
   log(`ping ${esc(ip)} → ${r.ok ? "OK" : "FAIL"}`);
 });
 
-document.getElementById("btn-traceroute").addEventListener("click", async () => {
-  const ip = document.getElementById("tool-target").value.trim();
+document.getElementById("btn-traceroute")?.addEventListener("click", async () => {
+  const ip = toolTarget();
   if (!ip) return;
   const r = await runTool("traceroute", { ip });
-  document.getElementById("tool-output").textContent =
-    r.raw || (r.hops || []).join("\n") || r.message || r.error || "—";
+  showTool("traceroute", r.raw || (r.hops || []).join("\n") || r.message || r.error || r, `traceroute ${ip}`);
   log(`traceroute ${esc(ip)}`);
 });
 
-document.getElementById("btn-banner").addEventListener("click", async () => {
-  const ip = document.getElementById("tool-target").value.trim();
-  const port = document.getElementById("tool-port").value.trim() || "80";
+document.getElementById("btn-banner")?.addEventListener("click", async () => {
+  const ip = toolTarget();
+  const port = toolPort("80");
   if (!ip) return;
   const r = await runTool("banner", { ip, port });
-  document.getElementById("tool-output").textContent =
-    r.banner || r.error || JSON.stringify(r, null, 2);
+  showTool("banner", r.banner || r.error || r, `banner ${ip}:${port}`);
   log(`banner ${esc(ip)}:${esc(port)}`);
 });
 
 document.getElementById("btn-dns")?.addEventListener("click", async () => {
-  const ip = document.getElementById("tool-target").value.trim();
+  const ip = toolTarget();
   if (!ip) return;
   const r = await runTool("dns", { query: ip });
-  document.getElementById("tool-output").textContent = JSON.stringify(r, null, 2);
+  showTool("dns", r, `dns ${ip}`);
   log(`dns ${esc(ip)}`);
 });
 
 document.getElementById("btn-tls")?.addEventListener("click", async () => {
-  const ip = document.getElementById("tool-target").value.trim();
-  const port = document.getElementById("tool-port").value.trim() || "443";
+  const ip = toolTarget();
+  const port = toolPort("443");
   if (!ip) return;
   const r = await runTool("tls", { host: ip, port });
-  document.getElementById("tool-output").textContent = JSON.stringify(r, null, 2);
+  showTool("tls", r, `tls ${ip}:${port}`);
   log(`tls ${esc(ip)}:${esc(port)}`);
+});
+
+document.getElementById("btn-port-check")?.addEventListener("click", async () => {
+  const ip = toolTarget();
+  const port = toolPort("80");
+  if (!ip) return;
+  const r = await runTool("port-check", { ip, port });
+  showTool("port-check", r, `port ${ip}:${port} → ${r.open ? "OPEN" : "CLOSED"}`);
+  log(`port-check ${esc(ip)}:${esc(port)}`);
+});
+
+document.getElementById("btn-port-scan")?.addEventListener("click", async () => {
+  const ip = toolTarget();
+  if (!ip) return;
+  const ports = toolExtra() || "21,22,23,25,53,80,110,139,143,443,445,3306,3389,8080";
+  const r = await runTool("port-scan", { ip, ports });
+  showTool("port-scan", r, `scan ${ip} · open: ${(r.open || []).join(", ") || "—"}`);
+  log(`port-scan ${esc(ip)}`);
+});
+
+document.getElementById("btn-http")?.addEventListener("click", async () => {
+  const ip = toolTarget();
+  if (!ip) return;
+  const port = parseInt(toolPort("80"), 10) || 80;
+  const path = toolExtra() || "/";
+  const https = port === 443 || port === 8443;
+  const r = await runTool("http", { target: ip, port, path, https });
+  showTool("http", r, `http ${ip} → ${r.status || r.error || "?"}`);
+  log(`http ${esc(ip)}`);
+});
+
+document.getElementById("btn-dig")?.addEventListener("click", async () => {
+  const ip = toolTarget();
+  if (!ip) return;
+  const r = await runTool("dig", { query: ip });
+  showTool("dig", r.raw || r, `dig ${ip}`);
+  log(`dig ${esc(ip)}`);
+});
+
+document.getElementById("btn-whois")?.addEventListener("click", async () => {
+  const ip = toolTarget();
+  if (!ip) return;
+  const r = await runTool("whois", { query: ip });
+  showTool("whois", r.output || r, `whois ${ip}`);
+  log(`whois ${esc(ip)}`);
+});
+
+document.getElementById("btn-neighbors")?.addEventListener("click", async () => {
+  const r = await runTool("neighbors", {});
+  showTool("neighbors", r.raw || (r.entries || []).join("\n") || r, `neighbors · ${r.count || 0}`);
+  log("neighbors");
+});
+
+document.getElementById("btn-routes")?.addEventListener("click", async () => {
+  const r = await runTool("routes", {});
+  showTool("routes", r.raw || (r.routes || []).join("\n") || r, "routes");
+  log("routes");
+});
+
+document.getElementById("btn-listening")?.addEventListener("click", async () => {
+  const r = await runTool("listening", {});
+  showTool("listening", r.raw || (r.lines || []).join("\n") || r, `listeners · ${r.count || 0}`);
+  log("listening");
+});
+
+document.getElementById("btn-subnet")?.addEventListener("click", async () => {
+  const cidr = toolTarget();
+  if (!cidr) return;
+  const r = await runTool("subnet", { cidr });
+  showTool("subnet", r, `subnet ${cidr}`);
+  log(`subnet ${esc(cidr)}`);
+});
+
+document.getElementById("btn-mac")?.addEventListener("click", async () => {
+  const mac = toolTarget();
+  if (!mac) return;
+  const r = await runTool("mac", { mac });
+  showTool("mac", r, `mac ${mac} → ${r.vendor || "?"}`);
+  log(`mac ${esc(mac)}`);
+});
+
+document.getElementById("btn-ssh-keyscan")?.addEventListener("click", async () => {
+  const ip = toolTarget();
+  const port = toolPort("22");
+  if (!ip) return;
+  const r = await runTool("ssh-keyscan", { ip, port });
+  showTool("ssh-keyscan", r.raw || (r.keys || []).join("\n") || r, `ssh-keyscan ${ip}:${port}`);
+  log(`ssh-keyscan ${esc(ip)}`);
+});
+
+document.getElementById("btn-mtu")?.addEventListener("click", async () => {
+  const ip = toolTarget();
+  if (!ip) return;
+  const size = parseInt(toolExtra() || "1400", 10) || 1400;
+  const r = await runTool("mtu", { ip, size });
+  showTool("mtu", r.output || r, `mtu ${ip} size=${size} → ${r.ok ? "OK" : "FAIL"}`);
+  log(`mtu ${esc(ip)}`);
 });
 
 // ---------- Topology ----------
@@ -1733,37 +2124,53 @@ async function renderTopology() {
         n.image ||
         n.icon ||
         `/static/img/devices/${role === "host_open_ports" ? "host" : role}.svg`;
+      // Size hierarchy: gateway/self larger, leaves smaller
+      let size = n.size || 30;
+      if (role === "gateway" || role === "router") size = Math.max(size, 40);
+      else if (role === "self") size = Math.max(size, 36);
+      else if (role === "ap") size = Math.max(size, 34);
+      else if (role === "internet") size = Math.max(size, 28);
+      // Cleaner labels (short)
+      let label = n.label || String(n.id || "");
+      if (label.includes("\n")) {
+        /* keep multi-line server labels */
+      } else if (label.length > 22) {
+        label = label.slice(0, 20) + "…";
+      }
       return {
         ...n,
+        label,
         shape: "image",
         image: icon,
         brokenImage: "/static/img/devices/unknown.svg",
-        size: n.size || 32,
-        // keep subtle ring via color for selection
+        size,
+        // No rectangular border around image icons (avoids ugly squares)
         color: {
-          border: colors.border,
+          border: "transparent",
+          background: "transparent",
           highlight: { border: colors.border, background: "transparent" },
           hover: { border: colors.border, background: "transparent" },
         },
         borderWidth: 0,
         borderWidthSelected: 0,
-        font: n.font || {
+        font: {
           color: "#e8eef9",
           face: "IBM Plex Mono, ui-monospace, monospace",
-          size: 11,
+          size: role === "gateway" || role === "self" ? 12 : 11,
           multi: true,
           align: "center",
-          strokeWidth: 3,
-          strokeColor: "#0a0d12",
+          strokeWidth: 4,
+          strokeColor: "rgba(10,13,18,0.92)",
+          vadjust: 4,
         },
         shadow: {
           enabled: true,
-          color: colors.glow || "rgba(0,0,0,0.5)",
-          size: 14,
+          color: colors.glow || "rgba(0,0,0,0.45)",
+          size: 16,
           x: 0,
-          y: 3,
+          y: 2,
         },
-        margin: 12,
+        margin: { top: 10, right: 10, bottom: 10, left: 10 },
       };
     })
   );
@@ -1775,31 +2182,35 @@ async function renderTopology() {
     height: "100%",
     width: "100%",
     nodes: {
-      borderWidth: 2,
-      shapeProperties: { borderRadius: 6 },
-      scaling: { min: 16, max: 48 },
+      borderWidth: 0,
+      // useBorderWithImage:false → no square frame around device icons
+      shapeProperties: { borderRadius: 0, useBorderWithImage: false },
+      scaling: { min: 18, max: 52 },
+      chosen: true,
     },
     edges: {
-      selectionWidth: 2,
-      hoverWidth: 1.5,
+      selectionWidth: 2.5,
+      hoverWidth: 2,
       smooth: {
-        type: state.hierarchical ? "cubicBezier" : "dynamic",
+        type: state.hierarchical ? "cubicBezier" : "continuous",
         forceDirection: state.hierarchical ? "vertical" : "none",
-        roundness: 0.35,
+        roundness: state.hierarchical ? 0.45 : 0.28,
       },
+      color: { inherit: false },
+      font: { size: 9, color: "#6b7688", strokeWidth: 0 },
     },
     physics: state.hierarchical
       ? false
       : {
           enabled: true,
-          stabilization: { iterations: 120, fit: true },
+          stabilization: { iterations: 160, fit: true, updateInterval: 25 },
           barnesHut: {
-            gravitationalConstant: -4200,
-            centralGravity: 0.15,
-            springLength: 120,
-            springConstant: 0.04,
-            damping: 0.45,
-            avoidOverlap: 0.3,
+            gravitationalConstant: -5200,
+            centralGravity: 0.12,
+            springLength: 140,
+            springConstant: 0.035,
+            damping: 0.48,
+            avoidOverlap: 0.55,
           },
         },
     layout: state.hierarchical
@@ -1809,23 +2220,25 @@ async function renderTopology() {
             direction: "UD",
             sortMethod: "directed",
             shakeTowards: "roots",
-            levelSeparation: 120,
-            nodeSpacing: 160,
-            treeSpacing: 180,
+            levelSeparation: 130,
+            nodeSpacing: 170,
+            treeSpacing: 200,
             blockShifting: true,
             edgeMinimization: true,
             parentCentralization: true,
           },
         }
-      : { hierarchical: { enabled: false }, improvedLayout: true, randomSeed: 7 },
+      : { hierarchical: { enabled: false }, improvedLayout: true, randomSeed: 42 },
     interaction: {
       hover: true,
-      tooltipDelay: 80,
-      hideEdgesOnDrag: false,
+      tooltipDelay: 60,
+      hideEdgesOnDrag: true,
+      hideEdgesOnZoom: false,
       navigationButtons: true,
       keyboard: false,
       zoomView: true,
       dragView: true,
+      multiselect: false,
     },
   };
 
@@ -2003,16 +2416,22 @@ function colorForRole(role) {
 }
 
 function edgeStyle(e) {
-  // Prefer server-provided styles; only fill gaps
   const t = e.edge_type || "client";
   const base = { ...e };
-  if (!base.color) {
-    if (t === "uplink") base.color = { color: "#5a6578", highlight: "#8b96a8" };
-    else if (t === "backbone") base.color = { color: "#2fd9d0", highlight: "#7aefe8" };
-    else base.color = { color: "#3a4558", highlight: "#f77f00" };
+  if (!base.color || typeof base.color === "string") {
+    if (t === "uplink") {
+      base.color = { color: "rgba(107,118,136,0.75)", highlight: "#a8b4c8", hover: "#a8b4c8" };
+    } else if (t === "backbone") {
+      base.color = { color: "rgba(47,217,208,0.85)", highlight: "#7aefe8", hover: "#7aefe8" };
+    } else {
+      base.color = { color: "rgba(70,82,104,0.7)", highlight: "#f77f00", hover: "#f77f00" };
+    }
   }
   if (base.width == null) {
-    base.width = t === "backbone" ? 2.5 : t === "uplink" ? 1.5 : 1.2;
+    base.width = t === "backbone" ? 2.8 : t === "uplink" ? 1.8 : 1.35;
+  }
+  if (base.smooth == null) {
+    base.smooth = { type: "continuous", roundness: 0.3 };
   }
   return base;
 }
@@ -2253,8 +2672,23 @@ async function quickAction(action) {
 }
 document.getElementById("btn-quick-ping")?.addEventListener("click", () => quickAction("ping"));
 document.getElementById("btn-quick-trace")?.addEventListener("click", () => quickAction("traceroute"));
+document.getElementById("btn-quick-banner")?.addEventListener("click", () => quickAction("banner"));
 document.getElementById("btn-quick-nmap")?.addEventListener("click", () => quickAction("nmap-light"));
+document.getElementById("btn-quick-nmap-vuln")?.addEventListener("click", () => quickAction("nmap-vuln"));
+document.getElementById("btn-quick-ports")?.addEventListener("click", () => quickAction("port-scan"));
+document.getElementById("btn-quick-http")?.addEventListener("click", () => quickAction("http"));
+document.getElementById("btn-quick-tls")?.addEventListener("click", () => quickAction("tls"));
+document.getElementById("btn-quick-ssh")?.addEventListener("click", () => quickAction("ssh-keyscan"));
+document.getElementById("btn-quick-dns")?.addEventListener("click", () => quickAction("dns"));
+document.getElementById("btn-quick-whois")?.addEventListener("click", () => quickAction("whois"));
 document.getElementById("btn-quick-wol")?.addEventListener("click", () => quickAction("wol"));
+document.getElementById("btn-quick-ai")?.addEventListener("click", async () => {
+  const ip = state.detailHost?.ip;
+  if (!ip) return toast("Sélectionne un hôte", "warn");
+  const d = await api(`/api/ai-host/${encodeURIComponent(ip)}`);
+  toast(d?.error ? d.error : `AI ${ip}: ${d?.severity}`, d?.error ? "err" : "ok");
+  log(d?.narrative || JSON.stringify(d).slice(0, 200));
+});
 document.getElementById("btn-add-finding")?.addEventListener("click", async () => {
   const key = state.detailHost.mac || state.detailHost.ip;
   const title = document.getElementById("td-notes")?.value?.trim() || "Finding";
@@ -2416,6 +2850,116 @@ async function refreshHealth() {
 }
 document.getElementById("btn-refresh-health")?.addEventListener("click", refreshHealth);
 
+// ---------- Cleanup: hosts / ignores / scans / session ----------
+async function removeHostFromSession(ip, mac, ignore) {
+  const body = {
+    ip: ip || "",
+    mac: mac || "",
+    forget_known: true,
+    ignore: !!ignore,
+    reason: ignore ? "ui" : "",
+  };
+  const r = await api("/api/session/host", { method: "DELETE", body: JSON.stringify(body) });
+  if (r.ok === false && r.error) {
+    toast(r.message || r.error, "err");
+    return;
+  }
+  // Update local ARP state
+  if (state.arp?.hosts) {
+    state.arp = {
+      ...state.arp,
+      hosts: state.arp.hosts.filter(
+        (h) => h.ip !== ip && (!mac || (h.mac || "").toUpperCase() !== mac.toUpperCase())
+      ),
+    };
+    state.arp.count = state.arp.hosts.length;
+    renderArpResults(state.arp);
+    populateTargetDropdown(state.arp.hosts);
+  }
+  updateDashboard();
+  toast(ignore ? `${ip || mac} ignoré` : `${ip || mac} supprimé`, "ok");
+  refreshKnownHosts();
+  refreshIgnoredHosts();
+}
+
+async function refreshKnownHosts() {
+  const tb = document.getElementById("known-hosts-tbody");
+  if (!tb) return;
+  try {
+    const d = await api("/api/known-hosts");
+    const hosts = d.hosts || [];
+    if (!hosts.length) {
+      tb.innerHTML = `<tr><td colspan="5" class="muted">Aucun hôte connu.</td></tr>`;
+      return;
+    }
+    tb.innerHTML = hosts
+      .map(
+        (h) => `<tr>
+        <td class="mono">${esc(h.ip || "—")}</td>
+        <td class="mono">${esc(h.mac || "—")}</td>
+        <td>${esc(h.vendor || h.hostname || "—")}</td>
+        <td class="muted small">${esc(h.last_seen || "")}</td>
+        <td>
+          <button class="mini secondary" data-del-known="${esc(h.mac)}" type="button">✕</button>
+          <button class="mini secondary" data-ignore-known="${esc(h.mac)}" data-ip="${esc(h.ip || "")}" type="button" title="Ignorer">⊘</button>
+        </td>
+      </tr>`
+      )
+      .join("");
+  } catch (e) {
+    tb.innerHTML = `<tr><td colspan="5" class="muted">${esc(String(e.message || e))}</td></tr>`;
+  }
+}
+
+async function refreshIgnoredHosts() {
+  const el = document.getElementById("ignored-hosts-list");
+  if (!el) return;
+  try {
+    const d = await api("/api/ignored-hosts");
+    const list = d.ignored || [];
+    if (!list.length) {
+      el.innerHTML = `<span class="muted">Aucun.</span>`;
+      return;
+    }
+    el.innerHTML = list
+      .map(
+        (o) => `<div class="ov-row">
+        <span class="ov-key mono">${esc(o.key)}</span>
+        <span class="muted small">${esc(o.reason || "")}</span>
+        <button class="mini secondary" data-unignore="${esc(o.key)}" type="button">✕</button>
+      </div>`
+      )
+      .join("");
+  } catch (_) {
+    el.innerHTML = `<span class="muted">Erreur.</span>`;
+  }
+}
+
+async function refreshFindingsCleanup() {
+  const el = document.getElementById("findings-cleanup-list");
+  if (!el) return;
+  try {
+    const d = await api("/api/findings?limit=40");
+    const list = d.findings || [];
+    if (!list.length) {
+      el.innerHTML = `<span class="muted">Aucun finding.</span>`;
+      return;
+    }
+    el.innerHTML = list
+      .map(
+        (f) => `<div class="ov-row">
+        <span class="badge">${esc(f.severity || "info")}</span>
+        <span class="ov-key">${esc(f.host_key || "")}</span>
+        <span>${esc(f.title || "")}</span>
+        <button class="mini secondary" data-del-finding="${f.id}" type="button">✕</button>
+      </div>`
+      )
+      .join("");
+  } catch (_) {
+    el.innerHTML = `<span class="muted">Erreur.</span>`;
+  }
+}
+
 // ---------- Scan history ----------
 async function refreshScans() {
   const kind = document.getElementById("hist-kind-filter")?.value || "";
@@ -2436,7 +2980,10 @@ async function refreshScans() {
         <td><span class="badge">${esc(s.kind)}</span></td>
         <td>${esc(s.created || "")}</td>
         <td>${s.size != null ? Math.round(s.size / 1024) + " Ko" : "—"}</td>
-        <td><button class="mini" data-load-scan="${s.id}" type="button">Charger</button></td>
+        <td>
+          <button class="mini" data-load-scan="${s.id}" type="button">Charger</button>
+          <button class="mini secondary" data-del-scan="${s.id}" type="button">✕</button>
+        </td>
       </tr>`
       )
       .join("");
@@ -2445,10 +2992,25 @@ async function refreshScans() {
   }
 }
 
-document.getElementById("btn-refresh-scans")?.addEventListener("click", refreshScans);
+document.getElementById("btn-refresh-scans")?.addEventListener("click", () => {
+  refreshScans();
+  refreshKnownHosts();
+  refreshIgnoredHosts();
+  refreshFindingsCleanup();
+  refreshOverrides();
+  refreshHistoryFull();
+});
 document.getElementById("hist-kind-filter")?.addEventListener("change", refreshScans);
 
 document.getElementById("scans-tbody")?.addEventListener("click", async (e) => {
+  const del = e.target.closest("[data-del-scan]");
+  if (del) {
+    if (!confirm(`Supprimer le scan #${del.dataset.delScan} ?`)) return;
+    await api(`/api/scans/${del.dataset.delScan}`, { method: "DELETE" });
+    toast("Scan supprimé", "ok");
+    refreshScans();
+    return;
+  }
   const btn = e.target.closest("[data-load-scan]");
   if (!btn) return;
   const id = btn.dataset.loadScan;
@@ -2456,10 +3018,7 @@ document.getElementById("scans-tbody")?.addEventListener("click", async (e) => {
     const r = await api(`/api/scans/${id}/load`, { method: "POST", body: "{}" });
     toast(r.message || `Scan ${id} chargé`, "ok");
     log(r.message || `Scan ${id} chargé`);
-    // refresh runtime views
     if (r.data?.kind === "arp" || r.kind === "arp") {
-      const arp = await api("/api/topology");
-      // reload arp from state via known path
       try {
         const sess = await api("/api/session/export");
         if (sess.last_arp) {
@@ -2474,6 +3033,108 @@ document.getElementById("scans-tbody")?.addEventListener("click", async (e) => {
   } catch (err) {
     toast(String(err.message || err), "err");
   }
+});
+
+document.getElementById("btn-clear-scans")?.addEventListener("click", async () => {
+  const kind = document.getElementById("hist-kind-filter")?.value || "";
+  if (!confirm(kind ? `Vider tous les scans « ${kind} » ?` : "Vider TOUS les scans enregistrés ?")) return;
+  await api("/api/scans/clear", { method: "POST", body: JSON.stringify({ kind: kind || null }) });
+  toast("Scans vidés", "ok");
+  refreshScans();
+});
+
+document.getElementById("btn-clear-session")?.addEventListener("click", async () => {
+  if (!confirm("Vider la session runtime (ARP / nmap / attack en mémoire) ?")) return;
+  await api("/api/session/clear", { method: "POST", body: "{}" });
+  state.arp = null;
+  state.nmap = null;
+  state.attack = null;
+  state.vuln = null;
+  const arpEl = document.getElementById("arp-results");
+  if (arpEl) arpEl.innerHTML = `<div class="empty-state"><div class="icon">◌</div>Session vidée.</div>`;
+  updateDashboard();
+  toast("Session vidée", "ok");
+});
+
+document.getElementById("btn-clear-known")?.addEventListener("click", async () => {
+  if (!confirm("Supprimer TOUS les hôtes connus de la base ?")) return;
+  await api("/api/known-hosts/clear", { method: "POST", body: "{}" });
+  toast("Hôtes connus vidés", "ok");
+  refreshKnownHosts();
+});
+
+document.getElementById("known-hosts-tbody")?.addEventListener("click", async (e) => {
+  const del = e.target.closest("[data-del-known]");
+  if (del) {
+    await api(`/api/known-hosts/${encodeURIComponent(del.dataset.delKnown)}`, { method: "DELETE" });
+    toast("Hôte connu supprimé", "ok");
+    refreshKnownHosts();
+    return;
+  }
+  const ign = e.target.closest("[data-ignore-known]");
+  if (ign) {
+    await api("/api/ignored-hosts", {
+      method: "POST",
+      body: JSON.stringify({ mac: ign.dataset.ignoreKnown, ip: ign.dataset.ip || "", reason: "from-known" }),
+    });
+    toast("Hôte ignoré", "ok");
+    refreshKnownHosts();
+    refreshIgnoredHosts();
+  }
+});
+
+document.getElementById("btn-add-ignore")?.addEventListener("click", async () => {
+  const key = document.getElementById("ignore-key-input")?.value?.trim();
+  if (!key) return toast("MAC ou IP requis", "err");
+  await api("/api/ignored-hosts", { method: "POST", body: JSON.stringify({ key, reason: "manual" }) });
+  document.getElementById("ignore-key-input").value = "";
+  toast(`${key} ignoré`, "ok");
+  refreshIgnoredHosts();
+  if (state.arp) {
+    state.arp.hosts = (state.arp.hosts || []).filter(
+      (h) => h.ip !== key && (h.mac || "").toUpperCase() !== key.toUpperCase()
+    );
+    state.arp.count = state.arp.hosts.length;
+    renderArpResults(state.arp);
+  }
+});
+
+document.getElementById("ignored-hosts-list")?.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-unignore]");
+  if (!btn) return;
+  await api(`/api/ignored-hosts/${encodeURIComponent(btn.dataset.unignore)}`, { method: "DELETE" });
+  toast("Retiré des ignorés", "ok");
+  refreshIgnoredHosts();
+});
+
+document.getElementById("btn-clear-ignored")?.addEventListener("click", async () => {
+  if (!confirm("Vider toute la blacklist ?")) return;
+  await api("/api/ignored-hosts/clear", { method: "POST", body: "{}" });
+  toast("Ignorés vidés", "ok");
+  refreshIgnoredHosts();
+});
+
+document.getElementById("btn-clear-history")?.addEventListener("click", async () => {
+  if (!confirm("Vider le journal ?")) return;
+  await api("/api/history/clear", { method: "POST", body: "{}" });
+  toast("Journal vidé", "ok");
+  refreshHistoryFull();
+  refreshHistory();
+});
+
+document.getElementById("btn-clear-findings")?.addEventListener("click", async () => {
+  if (!confirm("Supprimer tous les findings ?")) return;
+  await api("/api/findings/clear", { method: "POST", body: "{}" });
+  toast("Findings vidés", "ok");
+  refreshFindingsCleanup();
+});
+
+document.getElementById("findings-cleanup-list")?.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-del-finding]");
+  if (!btn) return;
+  await api(`/api/findings/${btn.dataset.delFinding}`, { method: "DELETE" });
+  toast("Finding supprimé", "ok");
+  refreshFindingsCleanup();
 });
 
 async function refreshOverrides() {
@@ -2763,3 +3424,242 @@ refreshHealth();
 syncLegendActive();
 log(`HARMATTAN v${window.HARMATTAN_VERSION || "3.3"} initialisé — prêt pour l’audit.`);
 toast("HARMATTAN prêt", "ok");
+
+/* hmx-boot-hint */
+(function bootExplainHint() {
+  try {
+    if (sessionStorage.getItem("hmx_hint_shown")) return;
+    sessionStorage.setItem("hmx_hint_shown", "1");
+    setTimeout(() => {
+      if (typeof toast === "function")
+        toast("Astuce: clique un résultat (port/hôte/CVE) · touche ? pour l'aide", "ok");
+    }, 1200);
+  } catch (_) {}
+})();
+
+
+// ---------- AI Analyst Network v3 ----------
+function renderAiAnalysis(data) {
+  if (!data || data.error) {
+    toast((data && (data.message || data.error)) || "Erreur AI", "err");
+    return;
+  }
+  const sev = data.severity || "info";
+  const grade = data.grade || "—";
+  const score = data.risk_score ?? "—";
+  document.getElementById("ai-summary").textContent = data.summary || "—";
+  document.getElementById("ai-meta").innerHTML =
+    `<span class="badge">sévérité <b>${esc(sev)}</b></span> ` +
+    `<span class="badge">grade <b>${esc(grade)}</b></span> ` +
+    `<span class="badge">score <b>${esc(score)}</b>/100</span> ` +
+    `<span class="badge">${esc(data.engine || "ai")}</span> ` +
+    `<span class="badge">${esc(data.total_hosts ?? 0)} hôtes</span>`;
+
+  const pri = data.priority_actions || [];
+  document.getElementById("ai-priorities").innerHTML = pri.length
+    ? pri.map((p) => `<li>${esc(p)}</li>`).join("")
+    : "<li class='muted'>Aucune priorité</li>";
+
+  const qw = data.quick_wins || [];
+  const qwEl = document.getElementById("ai-quickwins");
+  if (qwEl) {
+    qwEl.innerHTML = qw.length
+      ? qw.map((p) => `<li>${esc(p)}</li>`).join("")
+      : "<li class='muted'>—</li>";
+  }
+
+  document.getElementById("ai-advice").textContent = data.advice || "";
+
+  const mitre = data.mitre || [];
+  document.getElementById("ai-mitre").innerHTML = mitre.length
+    ? mitre.map((m) => `<span class="badge role-gateway" style="margin:2px;">${esc(m)}</span>`).join(" ")
+    : "—";
+
+  const posture = data.posture || {};
+  const checks = posture.checks || [];
+  document.getElementById("ai-posture").innerHTML = checks.length
+    ? `<div>Score posture: <b>${esc(posture.score ?? "—")}%</b></div>` +
+      checks
+        .map(
+          (c) =>
+            `<div>${c.ok ? "✓" : "✗"} ${esc(c.label || c.id)}</div>`
+        )
+        .join("")
+    : "";
+
+  const hot = data.hot_hosts || [];
+  document.getElementById("ai-hot-hosts").innerHTML = hot.length
+    ? `<table class="mini-table"><thead><tr><th>IP</th><th>Host</th><th>Risque</th><th>Ports</th><th></th></tr></thead><tbody>` +
+      hot
+        .map((h) => {
+          const ports = (h.top_ports || []).join(", ") || "—";
+          return `<tr>
+            <td>${esc(h.ip)}</td>
+            <td>${esc(h.hostname || h.vendor || "—")}</td>
+            <td>${esc(h.max_risk || "—")}</td>
+            <td>${esc(ports)}</td>
+            <td><button type="button" class="mini secondary btn-ai-host" data-ip="${esc(h.ip)}">AI hôte</button>
+            <a class="mini" href="/api/remediation/script/${encodeURIComponent(h.ip)}" target="_blank">Fix</a></td>
+          </tr>`;
+        })
+        .join("") +
+      `</tbody></table>`
+    : "<span class='muted'>Aucun hôte prioritaire</span>";
+
+  const insc = data.insecure_services || [];
+  document.getElementById("ai-insecure").innerHTML = insc.length
+    ? `<table class="mini-table"><thead><tr><th>IP</th><th>Port</th><th>Service</th><th>Risque</th><th>Reco</th></tr></thead><tbody>` +
+      insc
+        .slice(0, 20)
+        .map(
+          (i) => `<tr>
+          <td>${esc(i.ip)}</td><td>${esc(i.port)}</td><td>${esc(i.service)}</td>
+          <td>${esc(i.risk)}</td><td class="muted">${esc(i.recommendation || "")}</td></tr>`
+        )
+        .join("") +
+      `</tbody></table>`
+    : "<span class='muted'>Aucun service critique/haute listé</span>";
+
+  // Remediation shortcuts
+  const crit = hot.filter((h) => h.max_risk === "critique" || h.max_risk === "haute");
+  if (crit.length) {
+    document.getElementById("ai-remediation-links").innerHTML =
+      "<strong>Scripts de remédiation :</strong><br>" +
+      crit
+        .slice(0, 8)
+        .map(
+          (h) =>
+            `<a href="/api/remediation/script/${encodeURIComponent(h.ip)}" class="badge role-gateway" style="text-decoration:none;margin:2px;" target="_blank">Fix ${esc(h.ip)}</a>`
+        )
+        .join("");
+  } else {
+    document.getElementById("ai-remediation-links").innerHTML = "";
+  }
+
+  // AI v4 extras
+  const exec = document.getElementById("ai-executive");
+  if (exec) exec.textContent = data.executive_brief || "";
+
+  const pathsEl = document.getElementById("ai-paths");
+  if (pathsEl) {
+    const paths = data.attack_paths || [];
+    pathsEl.innerHTML = paths.length
+      ? paths
+          .map(
+            (p) =>
+              `<div style="margin-bottom:8px;padding:8px;border:1px solid var(--border);border-radius:8px;">
+                <b style="color:var(--orange)">${esc(p.id || "")} ${esc(p.name || "")}</b>
+                <span class="badge ${esc(p.severity || "info")}">${esc(p.severity || "")}</span>
+                <div class="muted small">${esc((p.steps || []).join(" → "))}</div>
+                <div class="muted small">MITRE: ${esc((p.mitre || []).join(", ") || "—")}</div>
+              </div>`
+          )
+          .join("")
+      : "—";
+  }
+
+  const blastEl = document.getElementById("ai-blast");
+  if (blastEl && data.blast_radius) {
+    const b = data.blast_radius;
+    blastEl.innerHTML = `<strong>Blast radius:</strong> impact ${esc(b.estimated_impact)} ·
+      hôtes HR ${esc(b.hosts_high_risk)} · admin ${esc(b.admin_exposures)} · data ${esc(b.data_exposures)}`;
+  }
+
+  const segEl = document.getElementById("ai-segmentation");
+  if (segEl) {
+    const segs = data.segmentation || [];
+    segEl.innerHTML = segs.length
+      ? "<strong>Segmentation:</strong><ul class='rec-list'>" +
+        segs.map((s) => `<li>${esc(s)}</li>`).join("") +
+        "</ul>"
+      : "";
+  }
+
+  const slaEl = document.getElementById("ai-sla");
+  if (slaEl) {
+    const sla = data.remediation_sla || [];
+    slaEl.innerHTML = sla.length
+      ? "<strong>SLA remédiation:</strong><br>" +
+        sla
+          .map(
+            (s) =>
+              `<span class="badge ${esc(s.severity)}">${esc(s.severity)}</span> ${esc(s.deadline)} — ${esc(s.action)}<br>`
+          )
+          .join("")
+      : "";
+  }
+
+  const narEl = document.getElementById("ai-narratives");
+  if (narEl) {
+    const nars = data.host_narratives || [];
+    narEl.innerHTML = nars.length
+      ? nars.map((n) => `<div style="margin-bottom:6px;">• ${esc(n.text || "")}</div>`).join("")
+      : "—";
+  }
+
+  // bind host AI buttons
+  document.querySelectorAll(".btn-ai-host").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const ip = btn.getAttribute("data-ip");
+      const d = await api(`/api/ai-host/${encodeURIComponent(ip)}`);
+      if (d && !d.error) {
+        toast(`AI hôte ${ip}: ${d.severity || "—"}`, "ok");
+        log(`AI host ${ip}: ${(d.findings || []).slice(0, 3).join(" · ")}`);
+        if (d.narrative) log(d.narrative);
+      } else {
+        toast((d && (d.message || d.error)) || "Erreur AI hôte", "err");
+      }
+    });
+  });
+}
+
+async function runNetworkAiAnalyze() {
+  const panel = document.getElementById("ai-analysis-panel");
+  if (!panel) return;
+  panel.classList.remove("hidden");
+  document.getElementById("ai-summary").textContent = "Analyse cognitive v4 en cours…";
+  document.getElementById("ai-priorities").innerHTML = "";
+  document.getElementById("ai-advice").textContent = "";
+  document.getElementById("ai-remediation-links").innerHTML = "";
+  const meta = document.getElementById("ai-meta");
+  if (meta) meta.textContent = "";
+  const exec = document.getElementById("ai-executive");
+  if (exec) exec.textContent = "";
+  log("Lancement AI Analyst Network v4…");
+  const data = await api("/api/ai-analyze");
+  if (data && (data.error || data.ok === false)) {
+    toast(data.message || data.error || "Erreur AI", "err");
+    document.getElementById("ai-summary").textContent =
+      data.message || data.error || "Échec analyse — lancez ARP/nmap d'abord.";
+    return;
+  }
+  renderAiAnalysis(data);
+  // enrich meta line
+  if (meta) {
+    const conf = data.confidence || {};
+    meta.textContent = `engine ${data.engine || "v4"} · confiance ${conf.score ?? "—"}% (${conf.level || "—"}) · grade ${data.grade || "—"} · score ${data.risk_score ?? "—"}`;
+  }
+  log(`AI Network v4 — ${data.severity || "?"} grade ${data.grade || "—"}`);
+  panel.scrollIntoView({ behavior: "smooth" });
+}
+
+document.getElementById("btn-ai-analyze")?.addEventListener("click", runNetworkAiAnalyze);
+document.getElementById("btn-ai-refresh")?.addEventListener("click", runNetworkAiAnalyze);
+document.getElementById("btn-ai-close")?.addEventListener("click", () => {
+  document.getElementById("ai-analysis-panel")?.classList.add("hidden");
+});
+
+// ---------- Dark Mode (New) ----------
+function toggleDarkMode() {
+  const isDark = document.body.classList.toggle("dark-mode");
+  localStorage.setItem("harmattan_dark_mode", isDark ? "1" : "0");
+  document.getElementById("btn-toggle-dark").textContent = isDark ? "☀️ Light" : "🌓 Dark";
+}
+
+document.getElementById("btn-toggle-dark")?.addEventListener("click", toggleDarkMode);
+
+if (localStorage.getItem("harmattan_dark_mode") === "1") {
+  document.body.classList.add("dark-mode");
+  const btn = document.getElementById("btn-toggle-dark");
+  if (btn) btn.textContent = "☀️ Light";
+}

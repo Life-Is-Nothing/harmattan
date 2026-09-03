@@ -139,18 +139,71 @@ def assess_host(host: dict, deep: bool = False) -> list[dict]:
     hits = []
     banners_cache: dict[int, str] = {}
     # only safe banner ports (avoid hanging on VNC/IPMI)
-    BANNER_OK = {80, 8080, 8000, 23, 21, 22, 9100, 9999, 10001}
+BANNER_OK = {80, 8080, 8000, 23, 21, 22, 9100, 9999, 10001}
 
+def verify_active_auth(ip: str, port: int, protocol: str = "http", timeout: float = 2.0) -> Optional[str]:
+    """
+    Attempt a safe login with common default credentials (admin/admin, root/root).
+    Focuses on HTTP Basic Auth for embedded devices.
+    """
+    import base64
+    import urllib.request
+    from urllib.error import HTTPError, URLError
+
+    if protocol == "http":
+        schemes = ["http", "https"] if port in (443, 8443) else ["http"]
+        creds = [("admin", "admin"), ("root", "root"), ("admin", "password"), ("admin", "1234")]
+        
+        for scheme in schemes:
+            url = f"{scheme}://{ip}:{port}/"
+            for user, pwd in creds:
+                try:
+                    req = urllib.request.Request(url)
+                    auth = base64.b64encode(f"{user}:{pwd}".encode()).decode()
+                    req.add_header("Authorization", f"Basic {auth}")
+                    # Create a custom opener to avoid following redirects or handling auth automatically
+                    with urllib.request.urlopen(req, timeout=timeout) as response:
+                        if response.status == 200:
+                            return f"{user}:{pwd}"
+                except HTTPError as e:
+                    if e.code == 401: continue
+                    if e.code == 200: return f"{user}:{pwd}"
+                except Exception:
+                    continue
+    return None
+
+
+def assess_host(host: dict, deep: bool = False, active: bool = False) -> list[dict]:
+    """Return list of default-cred risk flags for one host.
+
+    deep=True: probe banners (slower).
+    active=True: attempt lightweight login verification.
+    """
+    ip = host.get("ip") or ""
+    vendor = host.get("vendor") or ""
+    hostname = host.get("hostname") or ""
+    snmp = host.get("snmp_desc") or ""
+    ports = host.get("open_ports") or []
+    if isinstance(ports, list) and ports and isinstance(ports[0], dict):
+        ports = [int(p.get("port") or 0) for p in ports]
+    ports = [int(p) for p in ports if p]
+    blob = f"{vendor} {hostname} {snmp}"
+    hits = []
+    banners_cache: dict[int, str] = {}
+    
     for sig in DEFAULT_CRED_SIGNATURES:
         score = 0
         evidence = []
         if sig["vendor"].search(blob):
             score += 2
             evidence.append("vendor/hostname/snmp")
+        
+        verified_creds = None
         for p in sig["ports"]:
             if p in ports:
                 score += 1
                 evidence.append(f"port:{p}")
+                
                 if deep and p in BANNER_OK and ip and re.match(r"^\d+\.\d+\.\d+\.\d+$", ip):
                     if p not in banners_cache:
                         banners_cache[p] = grab_banner(ip, p, timeout=0.6)
@@ -158,17 +211,27 @@ def assess_host(host: dict, deep: bool = False) -> list[dict]:
                     if ban and sig["banner"].search(ban):
                         score += 3
                         evidence.append(f"banner:{p}")
+                
+                if active and p in (80, 8080, 8000, 443) and not verified_creds:
+                    res = verify_active_auth(ip, p)
+                    if res:
+                        verified_creds = res
+                        score += 5
+                        evidence.append(f"active_match:{res}")
+
         has_banner = any(e.startswith("banner") for e in evidence)
+        has_active = any(e.startswith("active_match") for e in evidence)
         has_vendor = any(e.startswith("vendor") for e in evidence)
         has_port = any(e.startswith("port") for e in evidence)
-        ok = has_banner or (has_vendor and has_port) or (has_vendor and score >= 4)
+        
+        ok = has_active or has_banner or (has_vendor and has_port) or (has_vendor and score >= 4)
         if ok and score >= 2:
             hits.append(
                 {
                     "id": sig["id"],
                     "name": sig["name"],
-                    "risk": sig["risk"],
-                    "hint": sig["hint"],
+                    "risk": "critique" if has_active else sig["risk"],
+                    "hint": f"CONFIRMÉ: {verified_creds}" if verified_creds else sig["hint"],
                     "evidence": evidence,
                     "score": score,
                 }
@@ -176,10 +239,10 @@ def assess_host(host: dict, deep: bool = False) -> list[dict]:
     return hits
 
 
-def scan_hosts(hosts: list[dict], max_hosts: int = 40, deep: bool = True) -> dict:
+def scan_hosts(hosts: list[dict], max_hosts: int = 40, deep: bool = True, active: bool = False) -> dict:
     results = []
     for h in hosts[:max_hosts]:
-        flags = assess_host(h, deep=deep)
+        flags = assess_host(h, deep=deep, active=active)
         if flags:
             results.append(
                 {

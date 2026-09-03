@@ -1102,3 +1102,334 @@ tr.highlight-new td { background: rgba(247,127,0,0.08); }
   .status-cluster { gap: 8px; }
   .wifi-chip { display: none; }
 }
+
+/* extras restored for advanced features */
+button.cyan { border-color: var(--cyan); color: var(--cyan); }
+button.cyan:hover { background: var(--cyan); color: #041414; }
+.ai-panel { border-color: rgba(47,217,208,0.28); }
+.action-bar { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+.action-group {
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+  padding:8px 10px; background: var(--bg-panel-2);
+  border:1px solid var(--border); border-radius:10px;
+}
+.action-group.primary { border-color: rgba(247,127,0,0.3); }
+.action-label {
+  font-size:9px; text-transform:uppercase; letter-spacing:.12em;
+  color:var(--text-low); font-weight:600; margin-right:4px;
+}
+#activity-log { display:none !important; }
+.main { padding-bottom: 24px; }
+.health-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+.health-item {
+  background:var(--bg-void); border:1px solid var(--border);
+  border-radius:8px; padding:12px 14px;
+}
+.health-item .hk { display:block; font-size:10px; color:var(--text-low); text-transform:uppercase; letter-spacing:.08em; }
+.health-item .hv { font-size:13px; color:var(--text-hi); margin-top:4px; }
+.rec-list { margin:0; padding-left:18px; font-size:12px; color:var(--text-mid); line-height:1.7; }
+
+/* ===========================================================
+   TOPOLOGY PRO v3.17 — polished map chrome
+   =========================================================== */
+#activity-log { display: none !important; }
+.main { padding-bottom: 28px !important; }
+
+.topo-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+  align-items: stretch;
+}
+.topo-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.topo-layout {
+  display: grid !important;
+  grid-template-columns: 1fr minmax(260px, 300px) !important;
+  gap: 14px !important;
+  align-items: stretch;
+}
+
+#topology-wrap,
+#topology-wrap.topology-pro {
+  position: relative;
+  height: min(78vh, 720px) !important;
+  min-height: 520px !important;
+  border-radius: 16px !important;
+  overflow: hidden;
+  border: 1px solid rgba(47, 217, 208, 0.22) !important;
+  background:
+    radial-gradient(ellipse 90% 70% at 50% -10%, rgba(47, 217, 208, 0.1), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(247, 127, 0, 0.07), transparent 50%),
+    linear-gradient(165deg, #0e141f 0%, #0a0d12 55%, #080b10 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    0 16px 48px rgba(0,0,0,0.45) !important;
+}
+
+/* No square grid — soft radial only (avoids "carreaux" on the map) */
+.topo-grid-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 1;
+  background:
+    radial-gradient(ellipse 75% 60% at 50% 42%, rgba(47, 217, 208, 0.06), transparent 62%),
+    radial-gradient(ellipse 40% 35% at 80% 80%, rgba(247, 127, 0, 0.04), transparent 55%);
+}
+
+#wind-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.14 !important;
+  pointer-events: none;
+}
+
+#network-graph {
+  position: relative;
+  z-index: 1;
+  height: 100% !important;
+  width: 100% !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+
+/* vis-network chrome */
+#network-graph .vis-navigation {
+  opacity: 0.85;
+}
+#network-graph .vis-button {
+  background: rgba(16, 21, 29, 0.92) !important;
+  border: 1px solid rgba(47, 217, 208, 0.25) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.35) !important;
+}
+#network-graph .vis-button:hover {
+  background: rgba(247, 127, 0, 0.15) !important;
+  border-color: rgba(247, 127, 0, 0.45) !important;
+}
+#network-graph div.vis-network div.vis-tooltip {
+  background: rgba(12, 16, 24, 0.96) !important;
+  border: 1px solid rgba(47, 217, 208, 0.35) !important;
+  border-radius: 10px !important;
+  color: #e8ecf1 !important;
+  font-family: var(--font-mono) !important;
+  font-size: 11px !important;
+  padding: 10px 12px !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.5) !important;
+  max-width: 280px;
+  white-space: pre-line !important;
+  line-height: 1.45;
+}
+
+.topo-empty {
+  background: rgba(8, 11, 16, 0.78) !important;
+  backdrop-filter: blur(6px);
+}
+.topo-empty .icon {
+  font-size: 42px !important;
+  color: var(--cyan);
+  text-shadow: 0 0 24px rgba(47, 217, 208, 0.4);
+}
+.topo-empty strong {
+  font-family: var(--font-display);
+  font-size: 16px !important;
+}
+
+/* HUD overlay */
+#topo-panel,
+.topo-hud {
+  position: absolute !important;
+  top: 14px !important;
+  left: 14px !important;
+  z-index: 6;
+  min-width: 210px;
+  background: rgba(10, 14, 22, 0.82) !important;
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid rgba(47, 217, 208, 0.28) !important;
+  border-radius: 14px !important;
+  padding: 14px 16px !important;
+  font-size: 10px;
+  pointer-events: none;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04) !important;
+}
+.tp-title {
+  font-size: 10px !important;
+  letter-spacing: 0.16em !important;
+  color: var(--orange) !important;
+  margin-bottom: 10px !important;
+  font-weight: 700 !important;
+  font-family: var(--font-display);
+}
+.tp-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 5px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(35, 43, 56, 0.6);
+}
+.tp-row:last-child { border-bottom: 0; margin-bottom: 0; }
+.tp-label {
+  color: var(--text-low);
+  letter-spacing: 0.08em;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.tp-value {
+  color: var(--cyan) !important;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 11px;
+  text-align: right;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Legend bar */
+#topo-legend,
+.topo-legend-icons {
+  position: absolute !important;
+  bottom: 12px !important;
+  left: 12px !important;
+  right: 12px !important;
+  z-index: 6;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+  align-items: center !important;
+  pointer-events: auto !important;
+  background: rgba(10, 14, 22, 0.88) !important;
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(47, 217, 208, 0.2) !important;
+  border-radius: 14px !important;
+  padding: 10px 12px !important;
+  max-width: none !important;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+}
+.leg-hint {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-low);
+  margin-right: 4px;
+  font-family: var(--font-mono);
+}
+.topo-legend-icons .leg-item {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  cursor: pointer;
+  background: rgba(255,255,255,0.02) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 999px !important;
+  padding: 4px 10px !important;
+  color: var(--text-mid) !important;
+  font-size: 10px !important;
+  font-family: var(--font-mono) !important;
+  transition: border-color .15s, background .15s, color .15s, transform .12s;
+}
+.topo-legend-icons .leg-item img {
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.06);
+}
+.topo-legend-icons .leg-item:hover {
+  border-color: rgba(47, 217, 208, 0.45) !important;
+  background: rgba(47, 217, 208, 0.1) !important;
+  color: var(--text-hi) !important;
+  transform: translateY(-1px);
+}
+.topo-legend-icons .leg-item.active {
+  border-color: rgba(247, 127, 0, 0.55) !important;
+  background: rgba(247, 127, 0, 0.14) !important;
+  color: var(--orange) !important;
+  box-shadow: 0 0 12px rgba(247, 127, 0, 0.15);
+}
+
+/* Detail panel */
+.topo-detail {
+  background: linear-gradient(180deg, rgba(16, 22, 32, 0.98), rgba(10, 13, 18, 0.99)) !important;
+  border: 1px solid rgba(47, 217, 208, 0.2) !important;
+  border-radius: 16px !important;
+  padding: 16px !important;
+  min-height: 320px;
+  max-height: min(78vh, 720px) !important;
+  overflow-y: auto;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.35) !important;
+}
+.topo-detail .tp-title {
+  margin-bottom: 12px !important;
+}
+.topo-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid var(--border);
+}
+.topo-detail-head img {
+  width: 56px !important;
+  height: 56px !important;
+  border-radius: 50%;
+  background: var(--bg-void);
+  border: 2px solid rgba(47, 217, 208, 0.35) !important;
+  box-shadow: 0 0 20px rgba(47, 217, 208, 0.2) !important;
+}
+.topo-detail-ip {
+  font-family: var(--font-display) !important;
+  font-size: 16px !important;
+  font-weight: 700;
+  color: var(--orange) !important;
+  word-break: break-all;
+  line-height: 1.25;
+}
+.topo-detail .tp-row {
+  margin-bottom: 2px;
+  padding: 6px 0;
+}
+.topo-detail .pill-port {
+  display: inline-block;
+  margin: 3px 4px 3px 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(47, 217, 208, 0.12);
+  border: 1px solid rgba(47, 217, 208, 0.2);
+  color: var(--cyan);
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+.override-box {
+  margin-top: 12px;
+  padding: 12px !important;
+  border: 1px solid rgba(47, 217, 208, 0.15) !important;
+  border-radius: 12px !important;
+  background: rgba(47, 217, 208, 0.04) !important;
+}
+
+@media (max-width: 960px) {
+  .topo-layout { grid-template-columns: 1fr !important; }
+  .topo-detail { max-height: none !important; }
+  #topology-wrap.topology-pro { height: min(60vh, 520px) !important; min-height: 380px !important; }
+  .topo-toolbar-group { width: 100%; }
+}

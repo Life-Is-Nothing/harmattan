@@ -1,17 +1,85 @@
 openapi: 3.0.3
 info:
   title: HARMATTAN Network API
-  version: 3.8.0
-  description: Network intelligence — ARP, topology, traffic, intel, L0p4Map parity
+  version: 3.20.0
+  description: |
+    Network intelligence — ARP, topology, traffic, intel, OT/IPv6, L0p4Map parity.
+    Auth: header `X-Harmattan-Token` or httponly cookie (query `?token=` disabled by default).
 servers:
   - url: http://127.0.0.1:8088
+components:
+  securitySchemes:
+    HarmattanToken:
+      type: apiKey
+      in: header
+      name: X-Harmattan-Token
+security:
+  - HarmattanToken: []
 paths:
   /api/health:
     get:
       summary: Health
+      security: []
       responses:
         "200":
           description: OK
+  /api/ready:
+    get:
+      summary: Readiness alias
+      security: []
+      responses:
+        "200":
+          description: OK
+  /api/status:
+    get:
+      summary: System check / status
+      security: []
+      responses:
+        "200":
+          description: OK
+  /api/preflight:
+    get:
+      summary: Environment preflight
+      security: []
+      responses:
+        "200":
+          description: OK
+  /api/metrics:
+    get:
+      summary: Runtime metrics (JSON or Prometheus)
+      security: []
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [prometheus]
+      responses:
+        "200":
+          description: Metrics snapshot
+  /api/stream:
+    get:
+      summary: SSE live events
+      responses:
+        "200":
+          description: text/event-stream
+  /api/jobs:
+    get:
+      summary: List async jobs
+      responses:
+        "200":
+          description: Job list
+  /api/jobs/{job_id}:
+    get:
+      summary: Get job status / result
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Job
   /api/arp-scan:
     post:
       summary: ARP discovery
@@ -27,32 +95,170 @@ paths:
       responses:
         "200":
           description: Job or result
-  /api/range-map:
+  /api/nmap-scan:
     post:
-      summary: Multi-hop range cartography
+      summary: Nmap scan
+      responses:
+        "200":
+          description: Job or result
+  /api/home-scan:
+    post:
+      summary: Full home / LAN chain scan
+      responses:
+        "200":
+          description: Job or result
+  /api/vuln-scan:
+    post:
+      summary: CVE correlation
+      responses:
+        "200":
+          description: Job or result
+  /api/attack-surface:
+    get:
+      summary: Attack surface report
+      responses:
+        "200":
+          description: Report
   /api/topology:
     get:
       summary: Topology graph
+      responses:
+        "200":
+          description: Nodes and edges
+  /api/range-map:
+    post:
+      summary: Multi-hop range cartography
+      responses:
+        "200":
+          description: Job or result
   /api/traffic/packets:
     get:
-      summary: Wireshark packet list
-  /api/scheduler/start:
+      summary: Packet list (Wireshark-style)
+      responses:
+        "200":
+          description: Packets
+  /api/traffic/start:
     post:
-      summary: Scheduled ARP + optional report
+      summary: Start live capture
+      responses:
+        "200":
+          description: Started
+  /api/traffic/stop:
+    post:
+      summary: Stop capture
+      responses:
+        "200":
+          description: Stopped
+  /api/intel/summary:
+    get:
+      summary: Intel pack summary (MITRE, scores, Suricata, …)
+      responses:
+        "200":
+          description: Summary
+  /api/ipv6/scan:
+    get:
+      summary: IPv6 neighbor discovery
+      responses:
+        "200":
+          description: Hosts
+  /api/ot/scan:
+    get:
+      summary: OT/ICS protocol probes
+      responses:
+        "200":
+          description: Results
   /api/default-creds:
     post:
-      summary: Default credential device scan
+      summary: Default credential signatures
+      responses:
+        "200":
+          description: Job or result
+  /api/creds/active:
+    post:
+      summary: Active default-cred verification
+      responses:
+        "200":
+          description: Results
   /api/wol:
     post:
       summary: Wake-on-LAN
-  /api/sahel/correlate:
+      responses:
+        "200":
+          description: Result
+  /api/findings:
+    get:
+      summary: List findings
+      responses:
+        "200":
+          description: Findings
     post:
-      summary: Correlate packets with Sahel alerts
-components:
-  securitySchemes:
-    HarmattanToken:
-      type: apiKey
-      in: header
-      name: X-Harmattan-Token
-security:
-  - HarmattanToken: []
+      summary: Add finding
+      responses:
+        "200":
+          description: Created
+  /api/ai-analyze:
+    get:
+      summary: Network AI analyst
+      responses:
+        "200":
+          description: Analysis
+  /api/report.html:
+    get:
+      summary: HTML report
+      responses:
+        "200":
+          description: HTML
+  /api/report.pdf:
+    get:
+      summary: PDF report
+      responses:
+        "200":
+          description: PDF
+  /api/report.docx:
+    get:
+      summary: DOCX report
+      responses:
+        "200":
+          description: DOCX
+  /api/export/stix:
+    get:
+      summary: STIX 2.1 bundle
+      responses:
+        "200":
+          description: JSON
+  /api/export/graphml:
+    get:
+      summary: GraphML topology
+      responses:
+        "200":
+          description: GraphML
+  /api/export/sahel:
+    get:
+      summary: Sahel Shield export
+      responses:
+        "200":
+          description: JSON
+  /api/scheduler/start:
+    post:
+      summary: Start ARP scheduler
+      responses:
+        "200":
+          description: Started
+  /api/scheduler/stop:
+    post:
+      summary: Stop scheduler
+      responses:
+        "200":
+          description: Stopped
+  /api/sahel/bridge/start:
+    post:
+      summary: Start live Sahel bridge
+      responses:
+        "200":
+          description: Started
+  /api/session/export:
+    get:
+      summary: Full session JSON export
+      responses:
+        "200":
+          description: Session

@@ -25,9 +25,14 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
     sh.setFormatter(fmt)
     logger.addHandler(sh)
 
+    # Rotating file handler — configurable via env vars
+    import os as _os
+    _max_bytes = int(_os.environ.get("HARMATTAN_LOG_MAX_BYTES", str(10 * 1024 * 1024)))  # 10MB default
+    _backup_count = int(_os.environ.get("HARMATTAN_LOG_BACKUP_COUNT", "5"))
+
     log_path = Path(DATA_DIR) / "harmattan.log"
     try:
-        fh = RotatingFileHandler(log_path, maxBytes=2_000_000, backupCount=3)
+        fh = RotatingFileHandler(log_path, maxBytes=_max_bytes, backupCount=_backup_count)
         fh.setFormatter(fmt)
         logger.addHandler(fh)
     except OSError:

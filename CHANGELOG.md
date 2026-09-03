@@ -1,5 +1,107 @@
 # Changelog
 
+## 3.22.0 — Major Refactoring & Improvements
+
+### Architecture · Frontend
+- **app.js split** : le monolithe 3665 lignes est découpé en 18 modules JS séparés (ui, arp, nmap, topology, traffic, ai, tools, intel, drawer, attack, vuln, dashboard, sahel, cleanup, diff, export, jobs, init)
+- **Router JS** : navigation par modules avec chargement ordonné
+- **Séparation des responsabilités** : chaque feature a son propre fichier
+
+### Sécurité
+- **Auth web** : login/password avec sessions Flask (page login cyberpunk)
+- **Multi-rôles** : admin (tout), viewer (lecture seule), scanner (scans seulement)
+- **Users DB** séparée (users.db) avec mots de passe hashés (werkzeug)
+- **Rate limiting frontend** : debounce/throttle sur les appels API
+
+### UX · Interface
+- **Dark mode cyberpunk complet** : thème néon cyan/rose/violet avec scanlines, glow, animations
+- **Loading skeletons** : placeholders animés pendant le chargement des données
+- **Global search Ctrl+K** : fuzzy search sur hosts, scans, outils, navigation
+- **Dashboard charts** : visualisations CSS pures (bar chart scans, donut risques, évolution hôtes)
+- **Scrollbars custom** neon, toasts avec glow, LED animées
+
+### Santé Système
+- **Health check amélioré** : vérification DB, disque, mémoire, uptime, dernier scan
+- **/api/health** retourne un JSON structuré avec statut par composant
+
+### Tests & Qualité
+- **Nouveaux tests unitaires** : arp_scanner, nmap_scanner, topology, traffic_analyzer, attack_surface, db, auth
+- **65+ nouveaux test functions** ajoutées
+- **CI/CD GitHub Actions** : lint ruff + pytest avec coverage
+- **Pre-commit hooks** : ruff, trailing whitespace, end-of-file
+
+### DevOps
+- **Script harmattan-update.sh** : mise à jour pull + deps + restart
+- **Script setup-git.sh** : branches main/develop + pre-commit + tags
+- **pyproject.toml** : config ruff + pytest
+- **.pre-commit-config.yaml** : hooks automatiques
+- **Git tags semver** : v3.22.0
+
+## 3.20.1 — Cleanup hôtes / blacklist / scans
+
+### UI · Historique
+- **Hôtes connus** : suppression unitaire ou totale
+- **Ignorés (blacklist)** : MAC/IP filtrés des prochains scans ARP
+- Boutons **Supprimer / Ignorer** dans la table ARP et le tiroir hôte
+- Vider scans, session runtime, journal, findings
+
+### API
+- `DELETE /api/known-hosts/<mac>` · `POST /api/known-hosts/clear`
+- `GET|POST|DELETE /api/ignored-hosts`
+- `DELETE /api/scans/<id>` · `POST /api/scans/clear`
+- `DELETE /api/session/host` · `POST /api/session/clear`
+- `POST /api/history/clear` · `POST /api/findings/clear`
+
+## 3.20.0 — Architecture · auth · observability
+
+### Architecture
+- **Flask blueprints** under `api/` (`system`, `scan`, `traffic`, `intel`, `tools`, `topology`, `export`, `ai`) — `app.py` slim factory.
+- Frontend helper module `static/js/core.js` (fetch, toast, safe URLs).
+
+### Security
+- **Query `?token=` disabled by default** (`HARMATTAN_ALLOW_QUERY_TOKEN=0`) — header `X-Harmattan-Token`, Bearer, or httponly cookie.
+- **Rate limiting** (`HARMATTAN_RATE_LIMIT`, default 180/min/IP).
+- SSE `/api/stream` uses cookie / same-origin auth (no token in URL).
+
+### Ops
+- **Persistent jobs** metadata in SQLite (`jobs` table) + hydrate after restart.
+- **`/api/metrics`** — JSON snapshot + Prometheus text (`?format=prometheus`).
+- OpenAPI bumped to **3.20.0**.
+
+### Suite
+- **HARMATTAN 4 bridge** — richer `sync-arp` (session, attack surface, findings, MITRE).
+
+## 3.9.1 — Critical runtime fix + stability
+
+### Critical
+- **Fixed early `if __name__ == "__main__"`** in the middle of `app.py` that started the server before registering most routes (ARP, nmap, traffic, etc. returned 404).
+- Routes are now fully registered; single startup block at end of file with SocketIO (`async_mode=threading`).
+
+### Stability
+- **Persistent API token** in `data/.api_token` (and `HARMATTAN_TOKEN` env) — no more 401 after every restart.
+- **Persistent SECRET_KEY** in `data/.secret_key`.
+- Clean **404/405 handlers** (no more 404 logged as Unhandled 500).
+- Scapy init more robust; preflight checks CAP_NET_RAW on real python path.
+- `PYTHONPYCACHEPREFIX=data/pycache` to avoid root-owned `modules/__pycache__` write failures.
+- Alias **`/api/status`** → system-check.
+- Frontend `fetch` uses `credentials: "same-origin"`.
+- Hub recreated (`~/harmattan-hub`) · suite launcher improved (`restart`, better wait).
+
+## 3.9.0 — OT/ICS + IPv6 + Active Creds
+
+### Discovery & Recon
+- **Module IPv6 Discovery** : scan multicast `ff02::1` (ICMPv6) + détection MAC/Vendor.
+- **Sondes OT/ICS** : détection de protocoles industriels (Modbus, S7comm, BACnet, EtherNet/IP, Niagara Fox).
+- API `/api/ipv6/scan` et `/api/ot/scan`.
+
+### Security
+- **Active Creds Verification** : vérification légère de mots de passe par défaut (admin/admin, root/root) sur HTTP/HTTPS.
+- Élevation automatique du risque à **CRITIQUE** si les identifiants sont confirmés.
+- API `/api/creds/active` (POST).
+
+### UI/Core
+- Intégration des résultats OT et IPv6 dans le résumé Intel (`/api/intel/summary`).
+
 ## 3.8.0 — Scheduler + HTTP stream + suite compose
 
 ### Ops
@@ -33,95 +135,3 @@
 ### Trafic
 - Export follow-stream **TXT** / **JSON** (téléchargement + copie `reports/`)
 - Bouton **⇄ Corréler Sahel** : match IP/ports alertes ↔ paquets
-- API `/api/sahel/correlate`, `/api/traffic/follow/<n>/export.txt|json`
-
-## 3.5.0 — Follow TCP stream + stats protocoles
-
-### Trafic Wireshark+
-- **Follow stream** (TCP/UDP) : reconstitution conversation + payload
-- Stats protocoles (barres DNS/HTTP/TLS/…)
-- Bouton **Vider** le buffer
-- API `/api/traffic/follow/<no>`, `/api/traffic/clear`, `/api/traffic/proto-stats`
-
-## 3.4.0 — Trafic mode Wireshark
-
-### Trafic
-- Dissection paquets : Ethernet · IP · TCP/UDP · DNS · HTTP · TLS · ARP · ICMP · DHCP
-- UI 3 panneaux : **Packet List** · **Packet Details** · **Packet Bytes** (hex)
-- Filtre display (dns, http, tcp.port == 443, ip.addr == …)
-- API `/api/traffic/packets` + `/api/traffic/packet/<no>`
-- Colonnes No / Time / Source / Destination / Protocol / Length / Info
-
-## 3.3.0 — Intel pack (discovery · MITRE · ML · STIX)
-
-### Discovery
-- SNMP v2c probe (UDP natif + snmpget si dispo) batch / unitaire
-- NetBIOS name (UDP 137 + nmblookup) + enrichissement hostname ARP
-- LLDP/CDP sniff Scapy (root/CAP_NET_RAW)
-- Scan Wi‑Fi (nmcli / iw)
-
-### Detection & scoring
-- Mapping **MITRE ATT&CK** (ports, rôles, nouveaux appareils)
-- **IsolationForest** (scikit-learn) + fallback heuristique
-- Intégration **Suricata** eve.json (lecture seule)
-- Bridge live **SAHEL SHIELD** (push périodique)
-
-### Export
-- **STIX 2.1** bundle (identity, infrastructure, indicators, attack-pattern)
-- **GraphML** + **GEXF** topologie (Gephi)
-
-### UI
-- Vue **08 Intel** : discovery, anomalies, MITRE, Suricata, bridge
-
-## 3.2.0 — Topology pro + inventory pack
-
-### Topology
-- Icônes SVG par type d’appareil (Android, Apple, server, TV, IoT…)
-- Légende cliquable (filtre par rôle)
-- Mode présentation plein écran (`P` / Esc)
-- Export topologie PNG + CSV
-- Override manuel rôle / tags / notes (SQLite `host_overrides`)
-
-### Inventory & integrations
-- Historique scans rechargeable (`/api/scans`, load)
-- Push inventaire vers SAHEL SHIELD + export JSON fallback
-- Export scope PT
-- Monitor ARP continu (background)
-- Panel santé système (Scapy, Nmap, auth, jobs, overrides)
-- Settings persistants (`sahel_url`, theme)
-
-### Fingerprinting
-- Android classé avant TV (fix Samsung TV)
-
-## 3.0.0 — Professional release
-
-### Security
-- Token API (auto ou `HARMATTAN_TOKEN`) + cookie HttpOnly
-- Validation stricte IP/CIDR/hostname/ports/BPF
-- Whitelist des arguments nmap (anti-injection)
-- XSS escaped côté frontend
-- Headers `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`
-
-### Architecture
-- Jobs asynchrones avec progression et annulation
-- SQLite : historique, scans, cache CVE, known hosts
-- État thread-safe, logging rotatif
-- Config centralisée (`core/config.py`)
-
-### Features
-- Score / grade attack surface + recommandations
-- Détection nouveaux appareils (MAC tracking)
-- Rôles IoT / caméra / imprimante
-- Outils DNS + TLS inspect
-- Rapports HTML + JSON + export session
-- Live monitoring ARP léger
-- Drawer détail hôte, filtres tables, toasts, raccourcis clavier
-- Topologie : clients rattachés à l’AP
-
-### Packaging
-- Docker + compose (host network)
-- pytest suite
-- README pro, `.gitignore`, script de lancement amélioré
-
-## 2.0.0 — Initial unified suite
-- ARP, nmap, topologie, CVE, trafic, dashboard

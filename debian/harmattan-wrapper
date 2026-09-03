@@ -1,0 +1,23 @@
+#!/bin/bash
+# HARMATTAN Desktop — Launcher wrapper for Debian package
+# Sets up environment and launches the desktop GUI
+
+HARMATTAN_HOME="/usr/lib/harmattan"
+HARMATTAN_ENV="/etc/harmattan/env"
+
+# Source default config if exists
+if [ -f "$HARMATTAN_ENV" ]; then
+    source "$HARMATTAN_ENV"
+fi
+
+export HARMATTAN_HOST
+export HARMATTAN_PORT
+export HARMATTAN_AUTO_TOKEN
+
+# Check for API token
+if [ -z "$HARMATTAN_TOKEN" ] && [ -f "$HOME/.config/harmattan/api_token" ]; then
+    export HARMATTAN_TOKEN=$(cat "$HOME/.config/harmattan/api_token")
+fi
+
+cd "$HARMATTAN_HOME" || exit 1
+exec python3 -m harmattan_gui "$@"

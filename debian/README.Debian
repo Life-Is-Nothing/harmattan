@@ -1,0 +1,25 @@
+harmattan-gui: how to build and install the .deb package
+
+BUILD:
+    sudo apt-get install devscripts build-essential
+    dpkg-buildpackage -us -uc -b
+
+    This will produce ../harmattan_3.21.0-1_amd64.deb
+
+INSTALL:
+    sudo dpkg -i ../harmattan_3.21.0-1_amd64.deb
+    sudo apt-get install -f  # install missing dependencies
+
+SYSTEM DEPENDENCIES:
+    sudo apt-get install nmap python3-pyqt6 python3-flask python3-scapy
+
+LAUNCH:
+    harmattan
+    # or from application menu: HARMATTAN
+
+NOTES:
+    - ARP scanning and traffic capture need root or CAP_NET_RAW:
+      sudo setcap cap_net_raw,cap_net_admin+eip /usr/bin/python3.12
+    - The API token is auto-generated on first run
+    - Config: /etc/harmattan/env
+    - Data: ~/.local/share/harmattan/

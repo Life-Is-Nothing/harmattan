@@ -12,6 +12,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("HARMATTAN_DATA", BASE_DIR / "data"))
 REPORTS_DIR = Path(os.environ.get("HARMATTAN_REPORTS", BASE_DIR / "reports"))
 DB_PATH = Path(os.environ.get("HARMATTAN_DB", DATA_DIR / "harmattan.db"))
+TOKEN_FILE = Path(os.environ.get("HARMATTAN_TOKEN_FILE", DATA_DIR / ".api_token"))
+SECRET_FILE = Path(os.environ.get("HARMATTAN_SECRET_FILE", DATA_DIR / ".secret_key"))
+# Separate SQLite DB for web users (login/password + roles)
+USERS_DB = Path(os.environ.get("HARMATTAN_USERS_DB", DATA_DIR / "users.db"))
 
 HOST = os.environ.get("HARMATTAN_HOST", "127.0.0.1")
 PORT = int(os.environ.get("HARMATTAN_PORT", "8088"))
@@ -22,7 +26,58 @@ API_TOKEN = os.environ.get("HARMATTAN_TOKEN", "").strip()
 # Auto-generate a session token when none provided (printed at startup)
 AUTO_TOKEN = os.environ.get("HARMATTAN_AUTO_TOKEN", "1") in ("1", "true", "True")
 
-SECRET_KEY = os.environ.get("HARMATTAN_SECRET", secrets.token_hex(32))
+
+def _read_secret_file(path: Path) -> str:
+    try:
+        if path.is_file():
+            return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        pass
+    return ""
+
+
+def _write_secret_file(path: Path, value: str) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(value + "\n", encoding="utf-8")
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+    except OSError:
+        pass
+
+
+def load_or_create_token() -> str:
+    """Stable API token across restarts (env > file > generate+save)."""
+    env = os.environ.get("HARMATTAN_TOKEN", "").strip()
+    if env:
+        return env
+    existing = _read_secret_file(TOKEN_FILE)
+    if existing:
+        return existing
+    token = secrets.token_urlsafe(24)
+    _write_secret_file(TOKEN_FILE, token)
+    return token
+
+
+def load_or_create_secret() -> str:
+    env = os.environ.get("HARMATTAN_SECRET", "").strip()
+    if env:
+        return env
+    existing = _read_secret_file(SECRET_FILE)
+    if existing:
+        return existing
+    secret = secrets.token_hex(32)
+    _write_secret_file(SECRET_FILE, secret)
+    return secret
+
+
+SECRET_KEY = load_or_create_secret()
+
+# Web auth: default admin bootstrap password (used only when no admin user exists).
+# If unset, the default admin/admin is created with a forced password change on first login.
+HARMATTAN_ADMIN_PASS = os.environ.get("HARMATTAN_ADMIN_PASS", "").strip()
 
 # NVD
 NVD_API_KEY = os.environ.get("NVD_API_KEY", "").strip()
@@ -48,9 +103,22 @@ NMAP_ALLOWED_FLAGS = frozenset({
     "-v", "-vv", "--open", "-6",
 })
 
-VERSION = "3.9.0"
+VERSION = "3.22.0"
 APP_NAME = "HARMATTAN"
-APP_TAGLINE = "Network Intelligence — L0p4Map parity · multi-hop · default-cred · WOL"
+APP_TAGLINE = "Network Intelligence · liquid glass · advanced recon · AI"
+
+# Auth hardening: query-string tokens disabled by default (use header or cookie)
+ALLOW_QUERY_TOKEN = os.environ.get("HARMATTAN_ALLOW_QUERY_TOKEN", "0") in ("1", "true", "True")
+# Rate limit (requests per minute per client IP); 0 disables
+RATE_LIMIT_PER_MIN = int(os.environ.get("HARMATTAN_RATE_LIMIT", "180"))
+# Public monitoring endpoints (no auth)
+PUBLIC_API_PATHS = frozenset({
+    "/api/health",
+    "/api/ready",
+    "/api/status",
+    "/api/preflight",
+    "/api/metrics",
+})
 
 # SNMP communities to try
 SNMP_COMMUNITIES = [

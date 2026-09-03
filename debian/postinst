@@ -1,0 +1,28 @@
+#!/bin/bash
+# postinst script for harmattan
+set -e
+
+case "$1" in
+    configure)
+        # Set capabilities for python3 if possible
+        PYTHON=$(which python3 2>/dev/null || echo "/usr/bin/python3")
+        if [ -x "$PYTHON" ] && command -v setcap &>/dev/null; then
+            setcap cap_net_raw,cap_net_admin+eip "$PYTHON" 2>/dev/null || true
+        fi
+
+        # Create data directory
+        mkdir -p /var/lib/harmattan
+        chmod 755 /var/lib/harmattan
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        exit 0
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

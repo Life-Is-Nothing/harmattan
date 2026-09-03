@@ -1,0 +1,28 @@
+DESTDIR=debian/harmattan
+PREFIX=/usr
+
+install:
+	# Create directories
+	mkdir -p $(DESTDIR)$(PREFIX)/lib/harmattan
+	mkdir -p $(DESTDIR)$(PREFIX)/bin
+	mkdir -p $(DESTDIR)$(PREFIX)/share/applications
+	mkdir -p $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps
+	mkdir -p $(DESTDIR)/etc/harmattan
+
+	# Copy application files
+	cp -r app.py api/ core/ modules/ static/ templates/ harmattan_gui/ $(DESTDIR)$(PREFIX)/lib/harmattan/
+	cp requirements.txt $(DESTDIR)$(PREFIX)/lib/harmattan/
+
+	# Create launcher script
+	echo '#!/bin/bash' > $(DESTDIR)$(PREFIX)/bin/harmattan
+	echo 'cd /usr/lib/harmattan && exec python3 -m harmattan_gui "$$@"' >> $(DESTDIR)$(PREFIX)/bin/harmattan
+	chmod 755 $(DESTDIR)$(PREFIX)/bin/harmattan
+
+	# Desktop file
+	cp harmattan.desktop $(DESTDIR)$(PREFIX)/share/applications/
+	cp harmattan_gui/resources/icons/app_icon.svg $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/harmattan.svg
+
+	# Default config
+	echo 'HARMATTAN_HOST=127.0.0.1' > $(DESTDIR)/etc/harmattan/env
+	echo 'HARMATTAN_PORT=8088' >> $(DESTDIR)/etc/harmattan/env
+	echo 'HARMATTAN_AUTO_TOKEN=1' >> $(DESTDIR)/etc/harmattan/env

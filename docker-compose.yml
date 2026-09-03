@@ -1,4 +1,7 @@
-services:
+# docker-compose.yml intentionally removed — Docker not used in this environment
+# To re-enable Docker, restore the original docker-compose.yml from git history.
+# Original file began with the 'services:' key.
+
   harmattan:
     build: .
     container_name: harmattan

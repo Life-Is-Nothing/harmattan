@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HARMATTAN — Connexion</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◆</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-void:  #070a0f;
+    --bg-panel: #0e1420;
+    --border:   #233047;
+    --text-hi:  #e8ecf1;
+    --text-mid: #8b96a8;
+    --cyan:     #2fd9d0;
+    --cyan-glow: rgba(47,217,208,0.55);
+    --pink:     #ff2fd6;
+    --pink-glow: rgba(255,47,214,0.5);
+    --purple:   #a75bff;
+    --orange:   #f77f00;
+    --red:      #ef4444;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg-void);
+    color: var(--text-hi);
+    font-family: var(--font-mono);
+    overflow: hidden;
+  }
+  /* Animated neon grid backdrop */
+  .grid-bg {
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(47,217,208,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(47,217,208,0.06) 1px, transparent 1px);
+    background-size: 48px 48px;
+    animation: grid-pan 14s linear infinite;
+  }
+  @keyframes grid-pan {
+    from { background-position: 0 0; }
+    to   { background-position: 0 48px; }
+  }
+  .blur-orb { position: fixed; border-radius: 50%; filter: blur(90px); z-index: 0; }
+  .orb-cyan  { width: 380px; height: 380px; left: -120px; bottom: -120px; background: var(--cyan-glow); }
+  .orb-pink  { width: 340px; height: 340px; right: -110px; top: -110px;   background: var(--pink-glow); }
+  .orb-purple{ width: 260px; height: 260px; right: 24%;  bottom: -140px;  background: rgba(167,91,255,0.4); }
+
+  .wrap {
+    position: relative; z-index: 1;
+    height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    width: 100%; max-width: 400px;
+    background: rgba(14,20,32,0.85);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 34px 30px 28px;
+    box-shadow:
+      0 0 0 1px rgba(47,217,208,0.08),
+      0 0 34px rgba(47,217,208,0.12),
+      0 0 80px rgba(255,47,214,0.08);
+    backdrop-filter: blur(10px);
+    animation: card-in 0.5s ease-out;
+  }
+  @keyframes card-in {
+    from { opacity: 0; transform: translateY(18px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .brand {
+    font-family: var(--font-display);
+    font-weight: 700; letter-spacing: 2px; font-size: 24px;
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(90deg, var(--cyan), var(--pink), var(--purple));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .brand .dot { color: var(--cyan); -webkit-text-fill-color: var(--cyan); }
+  .tagline {
+    color: var(--text-mid); font-size: 11px; letter-spacing: 1px;
+    margin: 6px 0 26px; text-transform: uppercase;
+  }
+  label { display: block; font-size: 11px; color: var(--text-mid); letter-spacing: 1px; margin: 16px 0 6px; text-transform: uppercase; }
+  input[type=text], input[type=password] {
+    width: 100%;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid var(--border);
+    color: var(--text-hi);
+    font-family: var(--font-mono); font-size: 15px;
+    padding: 12px 14px; border-radius: 8px; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input:focus {
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 3px rgba(47,217,208,0.18);
+  }
+  .btn {
+    margin-top: 24px; width: 100%;
+    font-family: var(--font-display); font-weight: 600; letter-spacing: 2px;
+    font-size: 14px; padding: 13px; border: none; border-radius: 8px;
+    cursor: pointer; color: #041414;
+    background: linear-gradient(90deg, var(--cyan), #7deae5);
+    box-shadow: 0 0 22px var(--cyan-glow);
+    transition: transform 0.15s, box-shadow 0.2s;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 0 32px var(--cyan-glow); }
+  .btn:active { transform: translateY(0); }
+  .btn.busy { opacity: 0.6; pointer-events: none; }
+  .error {
+    margin-top: 18px; padding: 10px 12px;
+    border: 1px solid rgba(239,68,68,0.5);
+    background: rgba(239,68,68,0.12);
+    color: #ffb4b4; font-size: 12px; border-radius: 8px;
+  }
+  .hint {
+    margin-top: 22px; text-align: center;
+    color: var(--text-mid); font-size: 11px;
+  }
+  .hint code { color: var(--cyan); }
+  .footer {
+    margin-top: 16px; text-align: center;
+    color: var(--text-low); font-size: 10px; letter-spacing: 1px;
+  }
+  .led {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--cyan); margin-right: 6px;
+    box-shadow: 0 0 10px var(--cyan-glow);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .scanline {
+    position: fixed; left: 0; right: 0; height: 90px; z-index: 0;
+    background: linear-gradient(180deg, transparent, rgba(47,217,208,0.05), transparent);
+    animation: scan 5s linear infinite;
+  }
+  @keyframes scan { from { top: -90px; } to { top: 100%; } }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <div class="blur-orb orb-cyan"></div>
+  <div class="blur-orb orb-pink"></div>
+  <div class="blur-orb orb-purple"></div>
+  <div class="scanline"></div>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="brand"><span class="dot">◆</span> HARMATTAN</div>
+      <div class="tagline">Network Intelligence · authentic access</div>
+
+      <form method="post" action="{{ url_for('auth.login', next=request.args.get('next')) }}" autocomplete="off">
+        <input type="hidden" name="next" value="{{ request.args.get('next') or '' }}">
+        <label for="username"><span class="led"></span>Nom d'utilisateur</label>
+        <input type="text" id="username" name="username" required autofocus>
+
+        <label for="password">Mot de passe</label>
+        <input type="password" id="password" name="password" required>
+
+        <button class="btn" type="submit" id="btn-login">ACCÉDER ▸</button>
+      </form>
+
+      {% if error %}<div class="error">⚠ {{ error }}</div>{% endif %}
+
+      <div class="hint">Compte par défaut : <code>admin</code> / <code>admin</code></div>
+      <div class="footer">HARMATTAN v{{ version }} · audit réseaux autorisés uniquement</div>
+    </div>
+  </div>
+
+<script>
+  const btn = document.getElementById('btn-login');
+  const form = document.querySelector('form');
+  form.addEventListener('submit', () => { btn.classList.add('busy'); btn.textContent = 'AUTHENTIFICATION…'; });
+</script>
+</body>
+</html>

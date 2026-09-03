@@ -1,0 +1,13 @@
+harmattan (3.21.0-1) unstable; urgency=medium
+
+  * HARMATTAN Desktop GUI — v3.21.0
+  * Application de bureau PyQt6 native
+  * Backend Flask avec API versionnée
+  * 14 vues : SOC Dashboard, ARP, Nmap, Topologie, etc.
+  * Notifications multi-canal (Slack, Discord, Email, Syslog)
+  * Exports PDF, DOCX, HTML, CSV, XLSX, STIX, GraphML
+  * Support HTTPS natif
+  * Architecture plugins
+  * Analyse IA offline avec scoring MITRE ATT&CK
+
+ -- Mohamed Adoungouss Ibrahim / NACF <root@harmattan.local>  Sun, 20 Jul 2026 06:00:00 +0000

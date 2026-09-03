@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HARMATTAN — {{ title }} — {{ generated }}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --navy: #0F172A; --slate: #334155; --muted: #64748B;
+    --orange: #EA580C; --cyan: #0D9488; --red: #DC2626; --green: #16A34A;
+    --border: #E2E8F0; --bg: #F8FAFC; --white: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body {
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    background:
+      radial-gradient(ellipse 80% 40% at 0% 0%, rgba(234,88,12,0.06), transparent 50%),
+      radial-gradient(ellipse 60% 35% at 100% 0%, rgba(13,148,136,0.06), transparent 45%),
+      var(--bg);
+    color: var(--navy); margin:0; padding:0; line-height:1.55; font-size:12.5px;
+  }
+  .page { max-width:1024px; margin:0 auto; padding:28px 24px 48px; }
+
+  /* Cover */
+  .cover {
+    background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(248,250,252,0.9));
+    border:1px solid var(--border); border-radius:16px; overflow:hidden; margin-bottom:22px;
+    box-shadow:0 12px 40px rgba(15,23,42,0.08);
+  }
+  .cover-bar { height:5px; background:linear-gradient(90deg, var(--navy) 0%, var(--orange) 50%, var(--cyan) 100%); }
+  .cover-body { padding:28px 32px 26px; position:relative; }
+  .cover-top { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .brand-row { display:flex; align-items:center; gap:14px; }
+  .logo {
+    width:52px; height:52px; border-radius:14px;
+    background:linear-gradient(135deg,#0F172A,#1e293b); color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:20px;
+    box-shadow:0 8px 24px rgba(15,23,42,0.25);
+  }
+  .brand-name { font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; }
+  .classify {
+    font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--orange); border:1px solid rgba(234,88,12,0.35);
+    background:rgba(255,247,237,0.9); padding:7px 14px; border-radius:999px;
+  }
+  h1 { font-size:26px; margin:20px 0 6px; letter-spacing:-.02em; font-weight:700; }
+  .subtitle { color:var(--muted); font-size:13px; margin:0 0 20px; }
+  .meta-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .meta-item {
+    background:rgba(248,250,252,0.85); border:1px solid var(--border); border-radius:12px;
+    padding:12px 14px;
+  }
+  .meta-item .l { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; font-weight:600; }
+  .meta-item .v { font-size:12px; margin-top:5px; font-family:ui-monospace,monospace; color:var(--navy); font-weight:500; }
+  .doc-id { margin-top:16px; font-size:11px; color:var(--muted); }
+
+  .notice {
+    background:linear-gradient(90deg,rgba(255,251,235,0.95),rgba(255,247,237,0.85));
+    border:1px solid #fde68a; border-left:4px solid var(--orange);
+    padding:14px 16px; margin:0 0 22px; font-size:12px; color:var(--slate);
+    border-radius:0 12px 12px 0;
+  }
+
+  h2 {
+    font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    padding:10px 14px; margin:28px 0 14px;
+    background:linear-gradient(90deg,rgba(15,23,42,0.06),transparent);
+    border-radius:10px; border-left:3px solid var(--orange);
+  }
+  h3 { font-size:13px; margin:14px 0 8px; font-weight:600; }
+
+  /* Executive */
+  .exec {
+    display:grid; grid-template-columns:140px 1fr; gap:18px;
+    background:linear-gradient(145deg,rgba(255,255,255,0.9),rgba(248,250,252,0.85));
+    border:1px solid var(--border); border-radius:16px; padding:20px;
+    box-shadow:0 8px 28px rgba(15,23,42,0.06);
+  }
+  .grade-box {
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    border-radius:14px; padding:16px 8px; border:1px solid var(--border);
+    background:rgba(241,245,249,0.9);
+  }
+  .grade-box.grade-ok { background:linear-gradient(160deg,#f0fdf4,#dcfce7); border-color:#bbf7d0; }
+  .grade-box.grade-mid { background:linear-gradient(160deg,#fffbeb,#fef3c7); border-color:#fde68a; }
+  .grade-box.grade-bad { background:linear-gradient(160deg,#fef2f2,#fecaca); border-color:#fecaca; }
+  .grade { font-size:52px; font-weight:800; line-height:1; }
+  .grade-box.grade-ok .grade { color:var(--green); }
+  .grade-box.grade-mid .grade { color:var(--orange); }
+  .grade-box.grade-bad .grade { color:var(--red); }
+  .grade small { display:block; font-size:11px; color:var(--muted); font-weight:500; margin-top:6px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(90px,1fr)); gap:10px; }
+  .kpi {
+    background:rgba(255,255,255,0.75); border:1px solid var(--border); border-radius:12px;
+    padding:14px 10px; text-align:center;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.9);
+  }
+  .kpi .k { font-size:22px; font-weight:700; }
+  .kpi .l { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-top:4px; font-weight:600; }
+  .exec-text { color:var(--slate); margin-top:14px; line-height:1.65; font-size:13px; }
+
+  /* Charts row */
+  .charts-row { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin:1rem 0 1.5rem; }
+  .chart-card {
+    background:rgba(255,255,255,0.85); border:1px solid var(--border); border-radius:14px;
+    padding:1.25rem; box-shadow:0 4px 16px rgba(15,23,42,0.04);
+  }
+  .chart-card.full { grid-column:1/-1; }
+  .chart-card h3 { font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:1rem; }
+  .chart-card .chart-wrap { position:relative; height:220px; }
+  .chart-card.full .chart-wrap { height:280px; }
+
+  /* Table */
+  table {
+    width:100%; border-collapse:separate; border-spacing:0;
+    margin:8px 0 16px; font-size:11.5px;
+    background:rgba(255,255,255,0.85); border:1px solid var(--border);
+    border-radius:14px; overflow:hidden;
+    box-shadow:0 4px 16px rgba(15,23,42,0.04);
+  }
+  th, td { border-bottom:1px solid var(--border); padding:10px 12px; text-align:left; vertical-align:top; }
+  th {
+    background:linear-gradient(180deg,#f8fafc,#f1f5f9); color:var(--slate);
+    text-transform:uppercase; font-size:9.5px; letter-spacing:.06em; font-weight:700;
+  }
+  tr:last-child td { border-bottom:0; }
+  tr:nth-child(even) td { background:rgba(248,250,252,0.6); }
+  .mono { font-family:ui-monospace,monospace; font-size:11px; }
+  .num { color:var(--muted); font-weight:600; width:28px; }
+
+  .pill {
+    display:inline-block; padding:3px 10px; border-radius:999px;
+    background:rgba(13,148,136,0.1); color:var(--cyan); font-size:10px; font-weight:600;
+    border:1px solid rgba(13,148,136,0.2);
+  }
+  .sev { font-weight:700; text-transform:uppercase; font-size:10px; }
+  .sev-critical, .sev-critique { color:var(--red); }
+  .sev-high, .sev-haute { color:var(--orange); }
+  .sev-medium, .sev-moyenne { color:#0891b2; }
+  .sev-low, .sev-faible { color:var(--muted); }
+  a { color:var(--cyan); text-decoration:none; font-weight:500; }
+  ul { margin:8px 0 16px; padding-left:18px; color:var(--slate); }
+  li { margin-bottom:6px; }
+
+  .subcard {
+    background:rgba(255,255,255,0.8); border:1px solid var(--border);
+    border-radius:14px; padding:14px 16px; margin-bottom:12px;
+  }
+  .section-note { color:var(--muted); font-size:12px; margin:-6px 0 10px; }
+  .toc {
+    background:linear-gradient(145deg,rgba(255,255,255,0.9),rgba(248,250,252,0.85));
+    border:1px solid var(--border); border-radius:16px;
+    padding:16px 20px; margin-bottom:8px;
+  }
+  .toc ol { margin:0; padding-left:20px; color:var(--slate); columns:2; gap:24px; }
+  .toc li { margin-bottom:5px; font-size:12px; }
+
+  .footer {
+    margin-top:36px; padding:16px 18px; border-radius:14px;
+    background:linear-gradient(90deg,rgba(15,23,42,0.04),rgba(13,148,136,0.05));
+    border:1px solid var(--border); color:var(--muted); font-size:10.5px;
+    display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  }
+
+  @media (max-width:720px) {
+    .meta-grid { grid-template-columns:repeat(2,1fr); }
+    .exec { grid-template-columns:1fr; }
+    .charts-row { grid-template-columns:1fr; }
+    .toc ol { columns:1; }
+    .page { padding:16px 12px; }
+  }
+  @media print {
+    body { background:#fff; }
+    .page { padding:0; max-width:none; }
+    .cover, .exec, .subcard, .toc, table, .chart-card { box-shadow:none; }
+    h2 { break-after:avoid; }
+    table { break-inside:auto; }
+    tr { break-inside:avoid; }
+    canvas { max-width:100%; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Cover -->
+  <section class="cover">
+    <div class="cover-bar"></div>
+    <div class="cover-body">
+      <div class="cover-top">
+        <div class="brand-row">
+          <div class="logo">H</div>
+          <div>
+            <div class="brand-name">HARMATTAN · Network Intelligence</div>
+            <div style="font-size:11px;color:var(--muted);">Rapport d'audit professionnel · NACF</div>
+          </div>
+        </div>
+        <div class="classify">Confidentiel</div>
+      </div>
+      <h1>{{ title }}</h1>
+      <p class="subtitle">Synthèse exécutive · top risques · inventaire · surface d'attaque · CVE · remédiation</p>
+      <div class="meta-grid">
+        <div class="meta-item"><div class="l">Client</div><div class="v">{{ client }}</div></div>
+        <div class="meta-item"><div class="l">Opérateur</div><div class="v">{{ operator }}</div></div>
+        <div class="meta-item"><div class="l">Date</div><div class="v">{{ generated }}</div></div>
+        <div class="meta-item"><div class="l">Référence</div><div class="v">{{ report_id }}</div></div>
+        <div class="meta-item"><div class="l">SSID</div><div class="v">{{ ssid }}</div></div>
+        <div class="meta-item"><div class="l">Subnet</div><div class="v">{{ subnet }}</div></div>
+        <div class="meta-item"><div class="l">Gateway</div><div class="v">{{ gateway }}</div></div>
+        <div class="meta-item"><div class="l">Outil</div><div class="v">HARMATTAN v{{ version }}</div></div>
+      </div>
+      <div class="doc-id">Document ID {{ report_id }} · Ne pas diffuser hors parties autorisées</div>
+    </div>
+  </section>
+
+  <div class="notice">
+    Ce livrable présente les résultats d'un audit réseau réalisé dans un cadre <b>autorisé</b>.
+    Toute redistribution hors des parties concernées est interdite. Les tests non autorisés sont illégaux.
+  </div>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h2 style="margin-top:0;border:0;padding:0;margin-bottom:10px;font-size:11px;">Sommaire</h2>
+    <ol>
+      <li>Synthèse exécutive</li>
+      <li>Top risques prioritaires</li>
+      <li>Répartition des rôles</li>
+      <li>Recommandations</li>
+      <li>Inventaire des hôtes</li>
+      <li>Surface d'attaque</li>
+      <li>Résultats Nmap</li>
+      <li>Vulnérabilités CVE</li>
+      <li>Méthodologie & limitations</li>
+    </ol>
+  </div>
+
+  <!-- 1. Executive Summary -->
+  <h2>1. Synthèse exécutive</h2>
+  <div class="exec">
+    <div class="grade-box grade-{{ grade_class }}">
+      <div class="grade">{{ grade }}<small>Grade · {{ score }}/100</small></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="k">{{ hosts_count }}</div><div class="l">Appareils</div></div>
+      <div class="kpi"><div class="k">{{ exposures_count }}</div><div class="l">Expositions</div></div>
+      <div class="kpi"><div class="k">{{ cves_count }}</div><div class="l">CVE</div></div>
+      <div class="kpi"><div class="k">{{ gateway_short }}</div><div class="l">Gateway</div></div>
+    </div>
+  </div>
+  <p class="exec-text">{{ exec_text }}</p>
+
+  <!-- Charts row -->
+  <div class="charts-row">
+    <div class="chart-card">
+      <h3>📊 Répartition des risques</h3>
+      <div class="chart-wrap"><canvas id="riskChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>🖥️ Top émetteurs</h3>
+      <div class="chart-wrap"><canvas id="hostChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- 2. Top risques -->
+  <h2>2. Top risques prioritaires</h2>
+  <p class="section-note">Classés par sévérité — actions recommandées en priorité opérationnelle.</p>
+  {% if top_risks %}
+  <div class="chart-card full" style="margin-bottom:1rem;">
+    <h3>🎯 Distribution des sévérités (top risques)</h3>
+    <div class="chart-wrap" style="height:60px;"><canvas id="riskBarChart"></canvas></div>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>IP</th><th>Type</th><th>Élément</th><th>Sévérité</th><th>Action / détail</th></tr></thead>
+    <tbody>
+    {% for r in top_risks %}
+      <tr>
+        <td class="num">{{ loop.index }}</td>
+        <td class="mono">{{ r.ip }}</td>
+        <td>{{ r.kind }}</td>
+        <td>{{ r.label }}</td>
+        <td><span class="sev sev-{{ r.risk|lower }}">{{ r.risk }}</span></td>
+        <td>{{ r.detail[:200] }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="section-note">Aucun risque prioritaire détecté dans cette session.</p>
+  {% endif %}
+
+  <!-- 3. Roles -->
+  <h2>3. Répartition des rôles</h2>
+  <div class="kpis">
+    {% for role, count in roles.items() %}
+    <div class="kpi"><div class="k">{{ count }}</div><div class="l">{{ role }}</div></div>
+    {% else %}
+    <div class="kpi"><div class="k">—</div><div class="l">aucun rôle</div></div>
+    {% endfor %}
+  </div>
+
+  <!-- 4. Recommendations -->
+  <h2>4. Recommandations prioritaires</h2>
+  {% if recommendations %}
+  <ul>
+    {% for r in recommendations[:20] %}
+    <li>{{ r }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="section-note">Aucune recommandation critique automatique.</p>
+  {% endif %}
+
+  <!-- 5. Hosts inventory -->
+  <h2>5. Inventaire des hôtes ({{ hosts_count }})</h2>
+  {% if hosts %}
+  <table>
+    <thead><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Hostname</th><th>Rôle</th><th>OS</th><th>Ports</th></tr></thead>
+    <tbody>
+    {% for h in hosts %}
+      <tr>
+        <td class="mono">{{ h.ip }}</td>
+        <td class="mono">{{ h.mac or '—' }}</td>
+        <td>{{ h.vendor or '—' }}</td>
+        <td>{{ h.hostname or '—' }}</td>
+        <td><span class="pill">{{ h.role or '—' }}</span></td>
+        <td>{{ h.os_hint or '—' }}</td>
+        <td class="mono">{{ h.ports_str or '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="section-note">Aucun hôte découvert.</p>
+  {% endif %}
+
+  <!-- 6. Attack surface -->
+  <h2>6. Surface d'attaque</h2>
+  <p class="section-note">Expositions: {{ exposures_count }} · Hôtes analysés: {{ attack_hosts_total }}</p>
+  {% if attack_rows %}
+  <table>
+    <thead><tr><th>IP</th><th>Rôle</th><th>Port</th><th>Service</th><th>Risque</th><th>Remédiation</th></tr></thead>
+    <tbody>
+    {% for e in attack_rows %}
+      <tr>
+        <td class="mono">{{ e.ip }}</td>
+        <td>{{ e.role }}</td>
+        <td class="mono">{{ e.port }}</td>
+        <td>{{ e.service }}</td>
+        <td><span class="sev sev-{{ e.risk|lower }}">{{ e.risk }}</span></td>
+        <td>{{ e.reco }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="section-note">Aucune exposition.</p>
+  {% endif %}
+
+  <!-- 7. Nmap -->
+  <h2>7. Résultats Nmap</h2>
+  {% if nmap_sections %}
+    {% for section in nmap_sections %}
+    <div class="subcard">
+      <h3>{{ section.ip }} <span style="color:var(--muted);font-weight:400;">— {{ section.os }}</span></h3>
+      {% if section.ports %}
+      <table>
+        <thead><tr><th>Port</th><th>Service</th><th>Version</th></tr></thead>
+        <tbody>
+        {% for p in section.ports %}
+          <tr><td class="mono">{{ p.port }}/{{ p.proto }}</td><td>{{ p.service }}</td><td>{{ p.product }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p style="color:var(--muted);font-size:11px;">Aucun port ouvert</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  {% else %}
+  <p class="section-note">Aucun scan nmap enregistré pour cette session.</p>
+  {% endif %}
+
+  <!-- 8. CVE -->
+  <h2>8. Vulnérabilités CVE</h2>
+  {% if cve_rows %}
+  <table>
+    <thead><tr><th>IP</th><th>Produit</th><th>CVE</th><th>Score</th><th>Sévérité</th><th>Description</th></tr></thead>
+    <tbody>
+    {% for c in cve_rows %}
+      <tr>
+        <td class="mono">{{ c.ip }}</td>
+        <td>{{ c.product }}</td>
+        <td>{% if c.url %}<a href="{{ c.url }}">{{ c.id }}</a>{% else %}{{ c.id }}{% endif %}</td>
+        <td>{{ c.score }}</td>
+        <td><span class="sev sev-{{ c.severity|lower }}">{{ c.severity }}</span></td>
+        <td>{{ c.description[:220] }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="section-note">Aucune CVE corrélée.</p>
+  {% endif %}
+
+  <!-- 8b. HARMATTAN+ annexes (intel / IoT / DNS / TLS / trends / netflow) -->
+  {% if extras %}
+  <h2>8bis. Annexes HARMATTAN+</h2>
+  {% for ex in extras %}
+    {% if ex.title and ex.html %}
+    <h3>{{ ex.title }}</h3>
+    <div class="section-note" style="margin-bottom:8px;">{{ ex.html|safe }}</div>
+    {% endif %}
+  {% endfor %}
+  {% endif %}
+
+  <!-- 9. Methodology -->
+  <h2>9. Méthodologie & limitations</h2>
+  <ul>
+    <li>Découverte ARP broadcast et enrichment (OUI, TTL, ports, SNMP, hostname)</li>
+    <li>Scan de services nmap selon profils sélectionnés</li>
+    <li>Agrégation de surface d'attaque et scoring de risque</li>
+    <li>Corrélation CVE via NVD lorsque les versions sont disponibles</li>
+    <li>Les hôtes silencieux (pas de réponse ARP) peuvent être absents</li>
+    <li>La corrélation CVE dépend de la précision product/version nmap</li>
+    <li>Aucun test d'exploitation destructif dans ce livrable</li>
+  </ul>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span><b>HARMATTAN</b> v{{ version }} · NACF · {{ generated }} · {{ report_id }}</span>
+    <span>Document confidentiel — ne pas diffuser</span>
+  </div>
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Risk distribution donut
+  var rCtx = document.getElementById('riskChart');
+  if (rCtx) {
+    new Chart(rCtx, {
+      type: 'doughnut',
+      data: {
+        labels: [{% for r in risk_labels %}'{{ r.label }} ({{ r.count }})'{% if not loop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+          data: [{% for r in risk_labels %}{{ r.count }}{% if not loop.last %},{% endif %}{% endfor %}],
+          backgroundColor: ['#dc2626','#ea580c','#0891b2','#64748b'],
+          borderWidth: 0,
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#64748B', padding: 10, font: { size: 10 } } }
+        }
+      }
+    });
+  }
+
+  // Host chart (bar)
+  var hCtx = document.getElementById('hostChart');
+  if (hCtx) {
+    new Chart(hCtx, {
+      type: 'bar',
+      data: {
+        labels: [{% for h in host_chart %}'{{ h.ip }}'{% if not loop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+          label: 'Ports ouverts',
+          data: [{% for h in host_chart %}{{ h.ports }}{% if not loop.last %},{% endif %}{% endfor %}],
+          backgroundColor: 'rgba(13,148,136,0.6)',
+          borderColor: '#0D9488',
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#64748B', font: { size: 9 } }, grid: { display: false } },
+          y: { ticks: { color: '#64748B', stepSize: 1 }, grid: { color: 'rgba(226,232,240,0.5)' } }
+        }
+      }
+    });
+  }
+
+  // Risk bar
+  var rbCtx = document.getElementById('riskBarChart');
+  if (rbCtx) {
+    new Chart(rbCtx, {
+      type: 'bar',
+      data: {
+        labels: ['Critique', 'Haute', 'Moyenne', 'Faible'],
+        datasets: [{
+          data: [{{ risk_bar.crit }}, {{ risk_bar.high }}, {{ risk_bar.med }}, {{ risk_bar.low }}],
+          backgroundColor: ['#dc2626','#ea580c','#0891b2','#64748b'],
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#64748B', stepSize: 1 }, grid: { color: 'rgba(226,232,240,0.5)' } },
+          y: { ticks: { color: '#64748B', font: { size: 9 } }, grid: { display: false } }
+        }
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>

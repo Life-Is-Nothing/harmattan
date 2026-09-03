@@ -1,0 +1,43 @@
+Source: harmattan
+Section: net
+Priority: optional
+Maintainer: Mohamed Adoungouss Ibrahim / NACF <root@harmattan.local>
+Build-Depends: debhelper-compat (= 13), dh-python, python3-all, python3-setuptools
+Standards-Version: 4.6.2
+Homepage: https://github.com/Life-Is-Nothing/harmattan
+Rules-Requires-Root: no
+
+Package: harmattan
+Architecture: any
+Depends: ${misc:Depends}, ${python3:Depends},
+         python3-flask (>= 3.0),
+         python3-requests,
+         python3-scapy,
+         python3-psutil,
+         python3-reportlab,
+         python3-docx,
+         python3-sklearn,
+         python3-numpy,
+         python3-pyqt6,
+         python3-pyqt6.qtcharts,
+         nmap,
+         ${shlibs:Depends}
+Recommends: python3-cryptography, python3-openpyxl, python3-keyring
+Suggests: suricata, ollama
+Description: HARMATTAN Network Intelligence Suite
+ Suite professionnelle d'audit réseau, SOC lab, pentest éthique
+ et IA cyber.
+ .
+ Fonctionnalités :
+  • Découverte ARP et scan Nmap
+  • Topologie réseau interactive
+  • Analyse de surface d'attaque et corrélation CVE
+  • Capture et analyse de trafic (style Wireshark)
+  • Outils réseau (ping, traceroute, DNS, WHOIS, etc.)
+  • Intelligence ARTificielle et scoring de risques
+  • Cartographie MITRE ATT&CK
+  • Exports PDF, DOCX, HTML, CSV, XLSX, STIX, GraphML
+  • Notifications Slack, Discord, Email, Syslog
+  • Interface desktop PyQt6 native
+ .
+ Usage strictement réservé à l'audit de réseaux autorisés.

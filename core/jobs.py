@@ -1,8 +1,9 @@
 """
-HARMATTAN — Async job queue for long-running scans.
+HARMATTAN — Async job queue with SQLite metadata persistence.
 """
 from __future__ import annotations
 
+import json
 import threading
 import traceback
 import uuid
@@ -14,6 +15,11 @@ from typing import Any, Callable, Optional
 
 from core.config import MAX_CONCURRENT_JOBS
 from core.logging_setup import get_logger
+
+try:
+    from core import notifications as notifier
+except Exception:
+    notifier = None
 
 log = get_logger("harmattan.jobs")
 
@@ -68,12 +74,71 @@ class Job:
         return d
 
 
+def _persist(job: Job, include_result: bool = False) -> None:
+    try:
+        from core import db
+
+        payload = job.to_dict(include_result=include_result and job.status == JobStatus.DONE)
+        # Cap result size in DB
+        if include_result and "result" in payload:
+            raw = json.dumps(payload.get("result"), default=str)
+            if len(raw) > 500_000:
+                payload["result"] = {"_truncated": True, "size": len(raw)}
+        db.upsert_job(payload)
+    except Exception:
+        log.debug("job persist skipped", exc_info=True)
+
+
 class JobManager:
     def __init__(self, max_workers: int = MAX_CONCURRENT_JOBS):
         self._jobs: dict[str, Job] = {}
         self._lock = threading.RLock()
         self._pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="harmattan-job")
         self._max_kept = 50
+        self._hydrated = False
+
+    def hydrate(self) -> None:
+        """Load recent finished jobs from SQLite (metadata only)."""
+        if self._hydrated:
+            return
+        try:
+            from core import db
+
+            rows = db.list_jobs(limit=self._max_kept)
+            with self._lock:
+                for row in rows:
+                    jid = row.get("id")
+                    if not jid or jid in self._jobs:
+                        continue
+                    status = row.get("status") or "done"
+                    # Don't revive running/pending as running — mark interrupted
+                    if status in ("running", "pending"):
+                        status = "error"
+                        row["error"] = row.get("error") or "interrupted_by_restart"
+                        row["message"] = "Interrompu (redémarrage)"
+                        row["finished"] = row.get("finished") or datetime.now().isoformat(timespec="seconds")
+                    try:
+                        st = JobStatus(status)
+                    except ValueError:
+                        st = JobStatus.DONE
+                    job = Job(
+                        id=jid,
+                        kind=row.get("kind") or "unknown",
+                        status=st,
+                        progress=int(row.get("progress") or 0),
+                        message=row.get("message") or "",
+                        error=row.get("error"),
+                        created=row.get("created") or datetime.now().isoformat(timespec="seconds"),
+                        started=row.get("started"),
+                        finished=row.get("finished"),
+                        result=row.get("result"),
+                    )
+                    self._jobs[jid] = job
+            self._hydrated = True
+            log.info("Hydrated %d jobs from DB", len(rows))
+        except Exception:
+            log.debug("job hydrate failed", exc_info=True)
+            self._hydrated = True
 
     def submit(
         self,
@@ -83,21 +148,25 @@ class JobManager:
         message: str = "En file d'attente…",
         **kwargs,
     ) -> Job:
+        self.hydrate()
         job = Job(id=uuid.uuid4().hex[:12], kind=kind, message=message)
         with self._lock:
             self._jobs[job.id] = job
             self._trim()
+        _persist(job)
         self._pool.submit(self._run, job, fn, args, kwargs)
         log.info("Job %s submitted kind=%s", job.id, kind)
         return job
 
     def _run(self, job: Job, fn: Callable, args: tuple, kwargs: dict) -> None:
         if job.cancelled:
+            _persist(job)
             return
         job.status = JobStatus.RUNNING
         job.started = datetime.now().isoformat(timespec="seconds")
         job.message = "En cours…"
         job.progress = 5
+        _persist(job)
 
         def progress(pct: int, msg: str = "") -> None:
             if job.cancelled:
@@ -105,15 +174,24 @@ class JobManager:
             job.progress = max(0, min(100, int(pct)))
             if msg:
                 job.message = msg
+            try:
+                if notifier:
+                    notifier.publish({
+                        "type": "job.update",
+                        "job": job.to_dict(include_result=False),
+                    })
+            except Exception:
+                pass
 
         try:
-            # Inject progress callback if function accepts it
             import inspect
+
             sig = inspect.signature(fn)
             if "progress" in sig.parameters:
                 kwargs = {**kwargs, "progress": progress}
             result = fn(*args, **kwargs)
             if job.cancelled:
+                _persist(job)
                 return
             job.result = result
             job.status = JobStatus.DONE
@@ -121,6 +199,12 @@ class JobManager:
             job.message = "Terminé"
             job.finished = datetime.now().isoformat(timespec="seconds")
             log.info("Job %s done kind=%s", job.id, job.kind)
+            _persist(job, include_result=True)
+            try:
+                if notifier:
+                    notifier.publish({"type": "job.update", "job": job.to_dict(include_result=False)})
+            except Exception:
+                pass
         except Exception as e:
             if str(e) == "cancelled" or job.cancelled:
                 job.status = JobStatus.CANCELLED
@@ -131,12 +215,20 @@ class JobManager:
                 job.message = "Erreur"
                 log.error("Job %s failed: %s\n%s", job.id, e, traceback.format_exc())
             job.finished = datetime.now().isoformat(timespec="seconds")
+            _persist(job)
+            try:
+                if notifier:
+                    notifier.publish({"type": "job.update", "job": job.to_dict(include_result=False)})
+            except Exception:
+                pass
 
     def get(self, job_id: str) -> Optional[Job]:
+        self.hydrate()
         with self._lock:
             return self._jobs.get(job_id)
 
     def list_jobs(self, limit: int = 20) -> list[dict]:
+        self.hydrate()
         with self._lock:
             jobs = sorted(self._jobs.values(), key=lambda j: j.created, reverse=True)
             return [j.to_dict(include_result=False) for j in jobs[:limit]]
@@ -146,6 +238,7 @@ class JobManager:
         if not job:
             return False
         job.cancel()
+        _persist(job)
         return True
 
     def _trim(self) -> None:
@@ -161,5 +254,4 @@ class JobManager:
             self._jobs.pop(old.id, None)
 
 
-# Singleton
 manager = JobManager()

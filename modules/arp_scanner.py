@@ -13,10 +13,36 @@ from core.validation import ValidationError, validate_cidr, validate_iface
 
 log = get_logger("harmattan.arp")
 
+SCAPY_AVAILABLE = False
+SCAPY_ERROR: str | None = None
+
 try:
-    from scapy.all import ARP, Ether, conf, srp
+    import os as _os
+
+    # Prefer raw sockets (works with root / CAP_NET_RAW; avoids libpcap quirks)
+    _os.environ.setdefault("SCAPY_USE_PCAP", "0")
+    from scapy.all import ARP, Ether, conf, srp  # type: ignore
+
+    try:
+        conf.use_pcap = False
+        conf.verb = 0
+        # Scapy ≥2.5 renamed L3rawSocket → L3PacketSocket (raw PF_PACKET L3 socket,
+        # already the default when libpcap is disabled). Keep it explicit but
+        # version-agnostic instead of referencing the removed L3rawSocket name.
+        try:
+            from scapy.arch import L3PacketSocket as _RawL3
+            conf.L3socket = _RawL3
+        except Exception:
+            pass
+    except Exception as _cfg_err:
+        log.warning("Scapy config soft-fail: %s", _cfg_err)
     SCAPY_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    SCAPY_ERROR = f"import: {e}"
+    SCAPY_AVAILABLE = False
+except Exception as e:
+    SCAPY_ERROR = str(e)
+    log.error("Scapy configuration error: %s", e)
     SCAPY_AVAILABLE = False
 
 

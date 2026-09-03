@@ -1,0 +1,16 @@
+/* Responsive tweaks and toast styles */
+:root{ --toast-bg: rgba(20,20,20,0.92); --toast-color:#fff; }
+.harmattan-dark { --bg: #0d0f12; --panel: #0f1418; --text: #e6eef6; --muted: #9aa6b2; --accent: #2dd4bf }
+.harmattan-dark body{ background: var(--bg); color: var(--text); }
+#toast-root{ position:fixed; right:16px; bottom:16px; z-index:9999; display:flex; flex-direction:column; gap:8px; }
+.toast{ background:var(--toast-bg); color:var(--toast-color); padding:8px 12px; border-radius:6px; box-shadow:0 6px 18px rgba(0,0,0,0.25); transform:translateY(6px); opacity:0; transition:all .28s ease; font-size:13px }
+.toast.visible{ transform:translateY(0); opacity:1 }
+.toast.danger{ background: #7a1f1f }
+
+/* small screens */
+@media (max-width:900px){
+  .sidebar{ display:none }
+  .topbar .brand small{ display:none }
+  .main{ padding:12px }
+  .controls-row{ flex-wrap:wrap }
+}

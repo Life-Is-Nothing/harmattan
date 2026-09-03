@@ -1,0 +1,634 @@
+/* HARMATTAN Cyberpunk Dark Mode — Neon Theme */
+/* Applies when body has class 'dark-mode' */
+
+:root {
+  --cyber-bg: #0a0a0f;
+  --cyber-bg2: #0f0f1a;
+  --cyber-bg3: #141425;
+  --cyber-surface: #1a1a2e;
+  --cyber-border: #1e1e3a;
+  --cyber-cyan: #00f0ff;
+  --cyber-pink: #ff00aa;
+  --cyber-purple: #8b5cf6;
+  --cyber-green: #00ff88;
+  --cyber-red: #ff3366;
+  --cyber-orange: #ff8800;
+  --cyber-yellow: #ffdd00;
+  --cyber-text: #e0e0ff;
+  --cyber-text-dim: #7878a0;
+  --cyber-glow-cyan: 0 0 10px rgba(0,240,255,0.3), 0 0 20px rgba(0,240,255,0.1);
+  --cyber-glow-pink: 0 0 10px rgba(255,0,170,0.3), 0 0 20px rgba(255,0,170,0.1);
+  --cyber-glow-purple: 0 0 10px rgba(139,92,246,0.3), 0 0 20px rgba(139,92,246,0.1);
+}
+
+body.dark-mode {
+  background: var(--cyber-bg);
+  color: var(--cyber-text);
+  font-family: 'IBM Plex Mono', 'Fira Code', monospace;
+}
+
+/* Scanline overlay */
+body.dark-mode::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 240, 255, 0.015) 2px,
+    rgba(0, 240, 255, 0.015) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ---- Topbar ---- */
+body.dark-mode .topbar {
+  background: var(--cyber-bg2);
+  border-bottom: 1px solid var(--cyber-border);
+  box-shadow: 0 2px 20px rgba(0,240,255,0.05);
+}
+
+body.dark-mode .topbar .brand .dot {
+  color: var(--cyber-cyan);
+  text-shadow: var(--cyber-glow-cyan);
+  animation: neon-pulse 2s ease-in-out infinite;
+}
+
+body.dark-mode .topbar .brand small {
+  color: var(--cyber-text-dim);
+}
+
+/* ---- Sidebar ---- */
+body.dark-mode .sidebar {
+  background: var(--cyber-bg2);
+  border-right: 1px solid var(--cyber-border);
+}
+
+body.dark-mode .nav-item {
+  color: var(--cyber-text-dim);
+  border-left: 3px solid transparent;
+  transition: all 0.2s ease;
+}
+
+body.dark-mode .nav-item:hover {
+  color: var(--cyber-text);
+  background: rgba(0,240,255,0.05);
+  border-left-color: rgba(0,240,255,0.3);
+}
+
+body.dark-mode .nav-item.active {
+  color: var(--cyber-cyan);
+  background: rgba(0,240,255,0.08);
+  border-left-color: var(--cyber-cyan);
+  text-shadow: 0 0 8px rgba(0,240,255,0.4);
+}
+
+body.dark-mode .nav-item .n {
+  color: var(--cyber-purple);
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+body.dark-mode .sidebar-footer {
+  color: var(--cyber-text-dim);
+  border-top: 1px solid var(--cyber-border);
+  font-size: 10px;
+}
+
+/* ---- Panels ---- */
+body.dark-mode .panel {
+  background: var(--cyber-surface);
+  border: 1px solid var(--cyber-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+body.dark-mode .panel:hover {
+  border-color: rgba(0,240,255,0.2);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4), var(--cyber-glow-cyan);
+}
+
+body.dark-mode .panel h2,
+body.dark-mode .panel h3 {
+  color: var(--cyber-cyan);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ---- Headings ---- */
+body.dark-mode h1 {
+  background: linear-gradient(135deg, var(--cyber-cyan), var(--cyber-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+  position: relative;
+}
+
+body.dark-mode h1::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--cyber-cyan), transparent);
+}
+
+/* ---- Buttons ---- */
+body.dark-mode button,
+body.dark-mode .btn {
+  background: transparent;
+  color: var(--cyber-cyan);
+  border: 1px solid var(--cyber-cyan);
+  transition: all 0.2s ease;
+}
+
+body.dark-mode button:hover,
+body.dark-mode .btn:hover {
+  background: rgba(0,240,255,0.1);
+  box-shadow: var(--cyber-glow-cyan);
+  transform: translateY(-1px);
+}
+
+body.dark-mode button:active {
+  transform: translateY(0);
+}
+
+body.dark-mode .secondary {
+  color: var(--cyber-text-dim);
+  border-color: var(--cyber-border);
+}
+
+body.dark-mode .secondary:hover {
+  color: var(--cyber-cyan);
+  border-color: rgba(0,240,255,0.4);
+  background: rgba(0,240,255,0.05);
+}
+
+body.dark-mode .danger {
+  color: var(--cyber-red);
+  border-color: var(--cyber-red);
+}
+
+body.dark-mode .danger:hover {
+  background: rgba(255,51,102,0.1);
+  box-shadow: 0 0 10px rgba(255,51,102,0.3);
+}
+
+body.dark-mode .cyan {
+  color: var(--cyber-cyan);
+  border-color: var(--cyber-cyan);
+}
+
+body.dark-mode .mini {
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
+/* ---- Stat Cards ---- */
+body.dark-mode .stat-card {
+  background: var(--cyber-bg3);
+  border: 1px solid var(--cyber-border);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+body.dark-mode .stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 2px;
+  background: linear-gradient(90deg, var(--cyber-cyan), var(--cyber-purple), var(--cyber-pink));
+}
+
+body.dark-mode .stat-card .v {
+  color: var(--cyber-cyan);
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  font-size: 28px;
+  text-shadow: 0 0 12px rgba(0,240,255,0.3);
+}
+
+body.dark-mode .stat-card .l {
+  color: var(--cyber-text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ---- Tables ---- */
+body.dark-mode table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+body.dark-mode thead th {
+  background: var(--cyber-bg3);
+  color: var(--cyber-purple);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--cyber-border);
+}
+
+body.dark-mode tbody tr {
+  transition: all 0.15s ease;
+}
+
+body.dark-mode tbody tr:hover {
+  background: rgba(0,240,255,0.04);
+  box-shadow: inset 0 0 20px rgba(0,240,255,0.03);
+}
+
+body.dark-mode tbody td {
+  border-bottom: 1px solid rgba(30,30,58,0.5);
+  color: var(--cyber-text);
+  font-size: 13px;
+}
+
+/* ---- Inputs ---- */
+body.dark-mode input[type="text"],
+body.dark-mode input[type="search"],
+body.dark-mode input[type="url"],
+body.dark-mode input[type="number"],
+body.dark-mode select {
+  background: var(--cyber-bg);
+  color: var(--cyber-text);
+  border: 1px solid var(--cyber-border);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: border-color 0.2s ease;
+}
+
+body.dark-mode input:focus,
+body.dark-mode select:focus {
+  border-color: var(--cyber-cyan);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0,240,255,0.15);
+}
+
+body.dark-mode input::placeholder {
+  color: var(--cyber-text-dim);
+  opacity: 0.5;
+}
+
+/* ---- Badges ---- */
+body.dark-mode .badge {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+body.dark-mode .badge.role-gateway { background: rgba(0,240,255,0.15); color: var(--cyber-cyan); }
+body.dark-mode .badge.role-server { background: rgba(139,92,246,0.15); color: var(--cyber-purple); }
+body.dark-mode .badge.role-pc { background: rgba(0,255,136,0.15); color: var(--cyber-green); }
+body.dark-mode .badge.role-router { background: rgba(255,0,170,0.15); color: var(--cyber-pink); }
+body.dark-mode .badge.role-iot { background: rgba(255,136,0,0.15); color: var(--cyber-orange); }
+body.dark-mode .badge.role-camera { background: rgba(255,51,102,0.15); color: var(--cyber-red); }
+body.dark-mode .badge.role-self { background: rgba(0,240,255,0.2); color: var(--cyber-cyan); border: 1px solid rgba(0,240,255,0.3); }
+
+/* ---- LED Status ---- */
+body.dark-mode .status-pill .led {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+body.dark-mode .status-pill.ok .led {
+  background: var(--cyber-green);
+  box-shadow: 0 0 6px var(--cyber-green);
+  animation: led-pulse 2s ease-in-out infinite;
+}
+
+body.dark-mode .status-pill.bad .led {
+  background: var(--cyber-red);
+  box-shadow: 0 0 6px var(--cyber-red);
+}
+
+/* ---- Toast Notifications ---- */
+body.dark-mode .toast {
+  background: var(--cyber-surface);
+  border: 1px solid var(--cyber-cyan);
+  color: var(--cyber-text);
+  font-family: 'IBM Plex Mono', monospace;
+  border-radius: 6px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5), var(--cyber-glow-cyan);
+}
+
+body.dark-mode .toast.err {
+  border-color: var(--cyber-red);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 10px rgba(255,51,102,0.3);
+}
+
+body.dark-mode .toast.warn {
+  border-color: var(--cyber-orange);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 10px rgba(255,136,0,0.3);
+}
+
+/* ---- Code / Pre ---- */
+body.dark-mode pre,
+body.dark-mode code,
+body.dark-mode .code-out {
+  background: var(--cyber-bg) !important;
+  color: var(--cyber-green);
+  border: 1px solid var(--cyber-border);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ---- Health Grid ---- */
+body.dark-mode .health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+body.dark-mode .health-item {
+  background: var(--cyber-bg3);
+  border: 1px solid var(--cyber-border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+body.dark-mode .health-item .hk {
+  color: var(--cyber-text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+body.dark-mode .health-item .hv {
+  color: var(--cyber-cyan);
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+}
+
+/* ---- Topology ---- */
+body.dark-mode .topo-hud {
+  background: rgba(10,10,15,0.9) !important;
+  border: 1px solid var(--cyber-cyan) !important;
+  border-radius: 8px;
+  box-shadow: var(--cyber-glow-cyan);
+}
+
+body.dark-mode .topo-legend-icons {
+  background: rgba(10,10,15,0.85) !important;
+  border: 1px solid var(--cyber-border);
+}
+
+body.dark-mode .leg-item.active {
+  border-color: var(--cyber-cyan);
+  color: var(--cyber-cyan);
+}
+
+/* ---- Job Bar ---- */
+body.dark-mode .job-bar {
+  background: var(--cyber-bg2);
+  border: 1px solid var(--cyber-purple);
+  box-shadow: var(--cyber-glow-purple);
+}
+
+body.dark-mode .job-fill {
+  background: linear-gradient(90deg, var(--cyber-cyan), var(--cyber-purple));
+  box-shadow: 0 0 8px rgba(0,240,255,0.5);
+}
+
+/* ---- Drawers ---- */
+body.dark-mode .host-drawer {
+  background: var(--cyber-bg2);
+  border-left: 1px solid var(--cyber-cyan);
+  box-shadow: -4px 0 30px rgba(0,240,255,0.1);
+}
+
+body.dark-mode .drawer-backdrop {
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+}
+
+/* ---- Host Drawer Detail ---- */
+body.dark-mode .topo-detail {
+  background: var(--cyber-bg2);
+  border: 1px solid var(--cyber-border);
+}
+
+/* ---- Action Bar ---- */
+body.dark-mode .action-bar {
+  background: var(--cyber-bg3);
+  border: 1px solid var(--cyber-border);
+}
+
+body.dark-mode .action-label {
+  color: var(--cyber-purple);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ---- WS (Wireshark) Layout ---- */
+body.dark-mode .ws-table-wrap {
+  background: var(--cyber-bg);
+}
+
+body.dark-mode .ws-table tbody tr:hover {
+  background: rgba(0,240,255,0.06);
+}
+
+body.dark-mode .ws-layers {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+
+body.dark-mode .ws-hexdump {
+  color: var(--cyber-green);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* ---- Override Box ---- */
+body.dark-mode .override-box {
+  background: var(--cyber-bg);
+  border: 1px solid var(--cyber-border);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+/* ---- Recommendation List ---- */
+body.dark-mode .rec-list li {
+  color: var(--cyber-text);
+  border-bottom: 1px solid rgba(30,30,58,0.3);
+  padding: 6px 0;
+}
+
+body.dark-mode .rec-list li::marker {
+  color: var(--cyber-cyan);
+}
+
+/* ---- Two Column ---- */
+body.dark-mode .two-col {
+  gap: 16px;
+}
+
+/* ---- Muted Text ---- */
+body.dark-mode .muted {
+  color: var(--cyber-text-dim);
+}
+
+body.dark-mode .small {
+  font-size: 12px;
+}
+
+/* ---- Empty State ---- */
+body.dark-mode .empty-state {
+  color: var(--cyber-text-dim);
+}
+
+body.dark-mode .empty-state .icon {
+  color: var(--cyber-purple);
+  font-size: 32px;
+  opacity: 0.4;
+}
+
+/* ---- Scrollbar ---- */
+body.dark-mode ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+body.dark-mode ::-webkit-scrollbar-track {
+  background: var(--cyber-bg);
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb {
+  background: var(--cyber-border);
+  border-radius: 3px;
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb:hover {
+  background: var(--cyber-cyan);
+  box-shadow: 0 0 6px rgba(0,240,255,0.3);
+}
+
+/* ---- Checkboxes ---- */
+body.dark-mode input[type="checkbox"] {
+  accent-color: var(--cyber-cyan);
+}
+
+/* ---- Modal / Stream ---- */
+body.dark-mode .stream-modal {
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(6px);
+}
+
+body.dark-mode .stream-card {
+  background: var(--cyber-bg2);
+  border: 1px solid var(--cyber-cyan);
+  border-radius: 8px;
+  box-shadow: var(--cyber-glow-cyan);
+}
+
+/* ---- Protocol Stats ---- */
+body.dark-mode .proto-stats-bars {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ---- Animate elements ---- */
+body.dark-mode .view-header .controls-row button {
+  animation: none;
+}
+
+/* ---- Dark Mode Toggle Button ---- */
+#btn-toggle-dark {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 1000;
+  background: var(--cyber-surface);
+  color: var(--cyber-cyan);
+  border: 1px solid var(--cyber-cyan);
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: var(--cyber-glow-cyan);
+  transition: all 0.2s ease;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+body:not(.dark-mode) #btn-toggle-dark {
+  background: #1a1a2e;
+  color: #00f0ff;
+  border-color: #00f0ff;
+  display: block !important;
+}
+
+#btn-toggle-dark:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(0,240,255,0.4);
+}
+
+/* ---- Animations ---- */
+@keyframes neon-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes led-pulse {
+  0%, 100% { box-shadow: 0 0 4px currentColor; }
+  50% { box-shadow: 0 0 10px currentColor, 0 0 20px currentColor; }
+}
+
+@keyframes neon-border-glow {
+  0% { border-color: var(--cyber-cyan); }
+  33% { border-color: var(--cyber-purple); }
+  66% { border-color: var(--cyber-pink); }
+  100% { border-color: var(--cyber-cyan); }
+}
+
+@keyframes shimmer-neon {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes glitch {
+  0% { transform: translate(0); }
+  20% { transform: translate(-2px, 2px); }
+  40% { transform: translate(-2px, -2px); }
+  60% { transform: translate(2px, 2px); }
+  80% { transform: translate(2px, -2px); }
+  100% { transform: translate(0); }
+}
+
+/* ---- Range map / Intel ---- */
+body.dark-mode #range-out,
+body.dark-mode #intel-discovery-out {
+  background: var(--cyber-bg) !important;
+  border: 1px solid var(--cyber-border);
+}
+
+/* ---- History Table ---- */
+body.dark-mode #scans-tbody tr:hover,
+body.dark-mode #known-hosts-tbody tr:hover {
+  background: rgba(0,240,255,0.04);
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 768px) {
+  body.dark-mode .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  body.dark-mode .health-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

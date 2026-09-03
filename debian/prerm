@@ -1,0 +1,13 @@
+#!/bin/bash
+# prerm script for harmattan
+set -e
+
+case "$1" in
+    remove|purge|upgrade|deconfigure)
+        # Stop any running harmattan instance
+        pkill -f "harmattan_gui" 2>/dev/null || true
+        pkill -f "harmattan" 2>/dev/null || true
+        ;;
+esac
+
+exit 0

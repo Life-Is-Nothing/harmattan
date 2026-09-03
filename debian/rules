@@ -1,0 +1,27 @@
+#!/usr/bin/make -f
+%:
+	dh $@ --with python3
+
+override_dh_auto_install:
+	# Install Python package
+	dh_auto_install
+
+	# Install desktop binary wrapper
+	mkdir -p $(CURDIR)/debian/harmattan/usr/bin
+	install -m 755 $(CURDIR)/debian/harmattan-wrapper $(CURDIR)/debian/harmattan/usr/bin/harmattan
+
+	# Install desktop file
+	mkdir -p $(CURDIR)/debian/harmattan/usr/share/applications
+	install -m 644 $(CURDIR)/harmattan.desktop $(CURDIR)/debian/harmattan/usr/share/applications/
+
+	# Install icon
+	mkdir -p $(CURDIR)/debian/harmattan/usr/share/icons/hicolor/scalable/apps
+	install -m 644 $(CURDIR)/harmattan_gui/resources/icons/app_icon.svg \
+		$(CURDIR)/debian/harmattan/usr/share/icons/hicolor/scalable/apps/harmattan.svg
+
+override_dh_python3:
+	dh_python3 --ignore-gpep517
+
+override_dh_strip:
+	# Keep debug symbols if needed
+	dh_strip --dbg-package=harmattan-dbg
